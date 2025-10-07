@@ -13,3 +13,8 @@ Copia `.env.example` a `.env` y asigna valores:
 ## Run
 python app.py  
 # http://127.0.0.1:5000
+
+## Conversión de precio (API)
+- Ruta: POST /cursos/<id>/convert
+- Base: https://api.exchangerate.host (fallback: https://api.frankfurter.app)
+- Desde USD a ARS/EUR; en caso de caída muestra mensaje de error controlado.
