@@ -1,3 +1,11 @@
+import os, requests
+from dotenv import load_dotenv
+
+load_dotenv()
+FX_API_BASE = os.getenv('FX_API_BASE', 'https://api.exchangerate.host')
+FX_API_FALLBACK = os.getenv('FX_API_FALLBACK', 'https://open.er-api.com/v6')
+FX_API_ALT = os.getenv('FX_API_ALT', 'https://api.frankfurter.app')
+
 from flask import Flask, render_template, request, redirect, url_for
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
@@ -37,6 +45,57 @@ class Enrollment(db.Model):
     user_id    = db.Column(db.Integer, nullable=False)
     course_id  = db.Column(db.Integer, nullable=False)
     status     = db.Column(db.String(20), nullable=False, default='pendiente')
+
+def convertir_monto_desde_usd(amount: float, to: str):
+    """
+    Пробуем 2–3 бесплатных API. Возвращаем (valor_convertido, error_str).
+    Внутренняя валюта – USD.
+    """
+    providers = [FX_API_BASE, FX_API_FALLBACK, FX_API_ALT]
+
+    for base in providers:
+        try:
+            # 1) exchangerate.host (поддерживает ARS и есть endpoint /convert)
+            if 'exchangerate.host' in base:
+                r = requests.get(
+                    f"{base}/convert",
+                    params={"from": "USD", "to": to, "amount": amount},
+                    timeout=6,
+                )
+                if r.ok:
+                    data = r.json()
+                    if data.get("result") is not None:
+                        return float(data["result"]), None
+
+            # 2) open.er-api.com (без ключа; берем курс и умножаем)
+            elif 'open-er-api' in base or 'open.er-api.com' in base:
+                r = requests.get(f"{base}/latest/USD", timeout=6)
+                if r.ok:
+                    data = r.json()
+                    # ожидаем {"result":"success","conversion_rates":{"ARS": ...}}
+                    if data.get("result") == "success":
+                        rate = data.get("conversion_rates", {}).get(to)
+                        if rate:
+                            return float(amount) * float(rate), None
+
+            # 3) frankfurter.app (стабильный, но НЕТ ARS; хорош для EUR/USD)
+            elif 'frankfurter.app' in base:
+                r = requests.get(
+                    f"{base}/latest",
+                    params={"amount": amount, "from": "USD", "to": to},
+                    timeout=6,
+                )
+                if r.ok:
+                    data = r.json()
+                    rate_value = data.get("rates", {}).get(to)
+                    if rate_value is not None:
+                        # здесь API сразу возвращает уже умноженную сумму
+                        return float(rate_value), None
+        except requests.RequestException:
+            # пробуем следующий провайдер
+            continue
+
+    return None, "Todas las APIs fallaron o no están disponibles ahora."
 
 def redirect_by_role(role: str):
     if role == 'admin':
@@ -143,10 +202,27 @@ def listar_cursos():
     cursos = Course.query.all()
     return render_template('cursos.html', cursos=cursos)
 
-@app.route('/cursos/<int:course_id>')
-def detalle_curso(course_id):
+@app.route('/cursos/<int:course_id>/convert', methods=['POST'])
+def convertir_precio(course_id):
     curso = Course.query.get_or_404(course_id)
-    return render_template('curso_detalle.html', curso=curso)
+    amount_str = request.form.get('amount', '').strip()
+    moneda = request.form.get('to', 'ARS').upper()
+
+    try:
+        amount = float(amount_str or 0)
+    except ValueError:
+        amount = 0.0
+
+    converted, error = convertir_monto_desde_usd(amount, moneda)
+
+    return render_template(
+        'curso_detalle.html',
+        curso=curso,
+        converted=converted,
+        error=error,
+        moneda=moneda,
+        amount=amount
+    )
 
 @app.route('/form_curso')
 def form_curso():
