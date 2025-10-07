@@ -6,13 +6,36 @@
 <p><strong>Precio:</strong> $ {{ '%.2f'|format(curso.precio) }}</p>
 
 {% if current_user.is_authenticated %}
-  <form method="post" action="{{ url_for('inscribirme', course_id=curso.id) }}">
-    <button type="submit">Inscribirme</button>
-  </form>
+<form method="post" action="{{ url_for('inscribirme', course_id=curso.id) }}">
+  <button type="submit">Inscribirme</button>
+</form>
 {% else %}
-  <p>Para inscribirte, <a href="{{ url_for('login') }}">inicia sesión</a>.</p>
+<p>Para inscribirte, <a href="{{ url_for('login') }}">inicia sesión</a>.</p>
+{% endif %}
+
+<hr>
+<h3>Convertir precio (USD → ARS/EUR)</h3>
+<form method="post" action="{{ url_for('convertir_precio', course_id=curso.id) }}">
+  <label>Monto (USD)</label>
+  <input type="number" step="0.01" name="amount"
+         value="{{ amount }}">
+
+  <label>Convertir a</label>
+  <select name="to">
+    <option value="ARS" {% if moneda=='ARS' %}selected{% endif %}>ARS</option>
+    <option value="EUR" {% if moneda=='EUR' %}selected{% endif %}>EUR</option>
+  </select>
+
+  <button type="submit">Convertir</button>
+</form>
+
+{% if converted is not none %}
+  <p><b>≈ {{ '%.2f'|format(converted) }} {{ moneda }}</b></p>
+{% elif error %}
+  <p style="color: crimson">{{ error }}</p>
 {% endif %}
 
 <p><a href="{{ url_for('listar_cursos') }}">Volver al listado</a></p>
 
 {% endblock %}
+
