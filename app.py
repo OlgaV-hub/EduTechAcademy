@@ -202,6 +202,18 @@ def listar_cursos():
     cursos = Course.query.all()
     return render_template('cursos.html', cursos=cursos)
 
+@app.route('/cursos/<int:course_id>')
+def detalle_curso(course_id):
+    curso = Course.query.get_or_404(course_id)
+    return render_template(
+        'curso_detalle.html',
+        curso=curso,
+        converted=None,   # <— добавили
+        error=None,       # <— добавили
+        moneda=None,      # <— опционально, чтобы не ругалось
+        amount=None       # <— опционально
+    )
+
 @app.route('/cursos/<int:course_id>/convert', methods=['POST'])
 def convertir_precio(course_id):
     curso = Course.query.get_or_404(course_id)

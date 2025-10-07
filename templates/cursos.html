@@ -31,7 +31,7 @@
         <strong>{{ c.nombre }}</strong>
         {% if c.descripcion %} — {{ c.descripcion }}{% endif %}
         {% if c.precio is not none %} · $ {{ '%.2f'|format(c.precio) }}{% endif %}
-        · <a href="{{ url_for('detalle_curso', course_id=c.id) }}">Ver detalle</a>
+        <a href="{{ url_for('detalle_curso', course_id=c.id) }}">Ver detalle</a>
       </li>
     {% endfor %}
   </ul>
