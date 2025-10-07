@@ -1,4 +1,4 @@
-<!doctype html>
+{# <!-- <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8"/>
@@ -14,5 +14,36 @@
     <a href="{{ url_for('ver_foro') }}">Foro</a>
   </nav>
   <main>{% block content %}{% endblock %}</main>
+</body>
+</html> --> #}
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <title>EduTech Academy</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+
+<nav>
+  <a href="{{ url_for('index') }}">Inicio</a>
+  <a href="{{ url_for('listar_cursos') }}">Cursos</a>
+  <a href="{{ url_for('ver_foro') }}">Foro</a>
+
+  {% if current_user.is_authenticated %}
+    <a href="{{ url_for('mis_cursos') }}">Mis cursos</a>
+    <a href="{{ url_for('logout') }}">Cerrar sesión</a>
+  {% else %}
+    <a href="{{ url_for('login') }}">Login</a>
+    <a href="{{ url_for('register') }}">Registro</a>
+  {% endif %}
+</nav>
+
+<hr>
+
+<!-- Контент страницы -->
+{% block content %}{% endblock %}
+
 </body>
 </html>

@@ -1,2 +1,18 @@
 {% extends "base.html" %}
-{% block content %}<h2>Panel Estudiante</h2>{% endblock %}
+{% block content %}<h2>Panel Estudiante</h2>
+
+<h1>Mis cursos</h1>
+
+<ul>
+  {% for c in cursos %}
+    <li>
+      <strong>{{ c.nombre }}</strong> — {{ c.descripcion or '—' }}
+      · <a href="{{ url_for('detalle_curso', course_id=c.id) }}">Ver detalle</a>
+    </li>
+  {% else %}
+    <li>Aún no estás inscripto en cursos.</li>
+  {% endfor %}
+</ul>
+
+{% endblock %}
+

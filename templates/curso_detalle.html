@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h1>{{ curso.nombre }}</h1>
+<p>{{ curso.descripcion or 'Sin descripción' }}</p>
+<p><strong>Precio:</strong> $ {{ '%.2f'|format(curso.precio) }}</p>
+
+{% if current_user.is_authenticated %}
+  <form method="post" action="{{ url_for('inscribirme', course_id=curso.id) }}">
+    <button type="submit">Inscribirme</button>
+  </form>
+{% else %}
+  <p>Para inscribirte, <a href="{{ url_for('login') }}">inicia sesión</a>.</p>
+{% endif %}
+
+<p><a href="{{ url_for('listar_cursos') }}">Volver al listado</a></p>
+
+{% endblock %}

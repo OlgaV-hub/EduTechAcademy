@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{# <!-- {% extends "base.html" %}
 {% block title %}Crear curso{% endblock %}
 {% block content %}
   <h2>Crear curso</h2>
@@ -15,4 +15,28 @@
   </form>
 
   <p><a href="{{ url_for('listar_cursos') }}">Volver a la lista</a></p>
+{% endblock %} --> #}
+
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Crear curso</h1>
+
+{% if not current_user.is_authenticated or current_user.role not in ['profesor','admin'] %}
+  <p>No tienes permisos para crear cursos.</p>
+{% else %}
+  <form method="post" action="{{ url_for('agregar_curso') }}">
+    <label>Nombre</label><br>
+    <input type="text" name="nombre" required><br><br>
+
+    <label>Descripción</label><br>
+    <textarea name="descripcion"></textarea><br><br>
+
+    <label>Precio</label><br>
+    <input type="number" name="precio" min="0" step="0.01" value="0"><br><br>
+
+    <button type="submit">Guardar</button>
+  </form>
+{% endif %}
+
 {% endblock %}

@@ -25,6 +25,19 @@ class User(UserMixin, db.Model):
     password = db.Column(db.String(200), nullable=False)
     role     = db.Column(db.String(20), nullable=False, default='estudiante')
 
+class Course(db.Model):
+    id          = db.Column(db.Integer, primary_key=True)
+    nombre      = db.Column(db.String(120), nullable=False)        # título
+    descripcion = db.Column(db.Text, nullable=True)
+    precio      = db.Column(db.Float, nullable=False, default=0.0) # price
+    teacher_id  = db.Column(db.Integer, nullable=True)             # opcional: id del profe
+
+class Enrollment(db.Model):
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, nullable=False)
+    course_id  = db.Column(db.Integer, nullable=False)
+    status     = db.Column(db.String(20), nullable=False, default='pendiente')
+
 def redirect_by_role(role: str):
     if role == 'admin':
         return redirect(url_for('admin_panel'))
@@ -32,15 +45,19 @@ def redirect_by_role(role: str):
         return redirect(url_for('profesor_panel'))
     return redirect(url_for('estudiante_panel'))
 
+def seed_cursos_si_hace_falta():
+    """Создаёт 1–2 курса, если таблица пустая."""
+    if Course.query.count() == 0:
+        db.session.add_all([
+            Course(nombre="Programación 1", descripcion="Curso base", precio=100.0),
+            Course(nombre="Base de Datos", descripcion="Modelado y SQL", precio=120.0),
+        ])
+        db.session.commit()
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-cursos = [
-    {'nombre': 'Programación 1', 'descripcion': 'Curso base'},
-    {'nombre': 'Base de Datos',  'descripcion': 'Modelado y SQL'},
-    {'nombre': 'UX Básico',      'descripcion': 'Introducción a UX'}
-]
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
 
 @app.route('/')
@@ -123,8 +140,13 @@ def protected():
 
 @app.route('/cursos')
 def listar_cursos():
-    # Mostrar una lista de cursos de memoria
+    cursos = Course.query.all()
     return render_template('cursos.html', cursos=cursos)
+
+@app.route('/cursos/<int:course_id>')
+def detalle_curso(course_id):
+    curso = Course.query.get_or_404(course_id)
+    return render_template('curso_detalle.html', curso=curso)
 
 @app.route('/form_curso')
 def form_curso():
@@ -132,21 +154,59 @@ def form_curso():
     return render_template('form_curso.html')
 
 @app.route('/agregar_curso', methods=['POST'])
+@login_required
 def agregar_curso():
-    # Tomar datos del formulario
-    nombre = request.form.get('nombre')
-    descripcion = request.form.get('descripcion')
+    # (опционально) только profesor/admin могут создавать
+    if current_user.role not in ('profesor', 'admin'):
+        return "Acceso denegado", 403
 
-    nuevo_curso = {
-        'nombre': nombre,
-        'descripcion': descripcion
-    }
+    nombre      = request.form.get('nombre', '').strip()
+    descripcion = request.form.get('descripcion', '').strip()
+    precio_str  = request.form.get('precio', '0').strip()
 
-    if nuevo_curso in cursos:
-        return render_template('Error.html')
-    else:
-        cursos.append(nuevo_curso)
-        return redirect(url_for('listar_cursos'))
+    try:
+        precio = float(precio_str)
+    except ValueError:
+        precio = 0.0
+
+    if not nombre:
+        return "Nombre es obligatorio", 400
+
+    nuevo = Course(
+        nombre=nombre,
+        descripcion=descripcion,
+        precio=precio,
+        teacher_id=current_user.id  # opcional
+    )
+    db.session.add(nuevo)
+    db.session.commit()
+    return redirect(url_for('listar_cursos'))
+
+@app.route('/inscribirme/<int:course_id>', methods=['POST'])
+@login_required
+def inscribirme(course_id):
+    # запретим дубликаты
+    ya = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+    if ya:
+        return redirect(url_for('mis_cursos'))  # уже записан
+
+    # убедимся, что курс существует
+    if not Course.query.get(course_id):
+        return "Curso no encontrado", 404
+
+    insc = Enrollment(user_id=current_user.id, course_id=course_id, status='pendiente')
+    db.session.add(insc)
+    db.session.commit()
+    return redirect(url_for('mis_cursos'))
+
+@app.route('/mis-cursos')
+@login_required
+def mis_cursos():
+    inscripciones = Enrollment.query.filter_by(user_id=current_user.id).all()
+    # найдём объекты курсов по id
+    cursos_ids = [i.course_id for i in inscripciones]
+    cursos = Course.query.filter(Course.id.in_(cursos_ids)).all() if cursos_ids else []
+    return render_template('estudiante.html', cursos=cursos)
 
 @app.route('/foro')
 def ver_foro():
@@ -156,4 +216,5 @@ def ver_foro():
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
+        seed_cursos_si_hace_falta()
     app.run(debug=True)

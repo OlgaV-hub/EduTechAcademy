@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{# <!-- {% extends "base.html" %}
 {% block title %}Cursos{% endblock %}
 {% block content %}
   <h2>Cursos</h2>
@@ -14,4 +14,31 @@
   {% endif %}
 
   <p><a href="{{ url_for('form_curso') }}">Crear curso</a></p>
+{% endblock %} --> #}
+
+
+{% extends "base.html" %}
+{% block content %}
+
+<h1>Cursos</h1>
+
+{% if cursos|length == 0 %}
+  <p>No hay cursos agregados aún.</p>
+{% else %}
+  <ul>
+    {% for c in cursos %}
+      <li>
+        <strong>{{ c.nombre }}</strong>
+        {% if c.descripcion %} — {{ c.descripcion }}{% endif %}
+        {% if c.precio is not none %} · $ {{ '%.2f'|format(c.precio) }}{% endif %}
+        · <a href="{{ url_for('detalle_curso', course_id=c.id) }}">Ver detalle</a>
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if current_user.is_authenticated and current_user.role in ['profesor','admin'] %}
+  <p><a href="{{ url_for('form_curso') }}">Crear curso</a></p>
+{% endif %}
+
 {% endblock %}
