@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Panel Registrarse</h2>
+
+<form method="POST">
+  <label>Usuario: <input name="username" required></label><br>
+  <label>Contraseña: <input type="password" name="password" required></label><br>
+  <label>Rol:
+  <select name="rol" required>
+    <option value="estudiante">Estudiante</option>
+    <option value="profesor">Profesor</option>
+    <option value="admin">Administrador</option>
+  </select>
+</label><br>
+  <button type="submit">Registrar</button>
+</form>
+
+{% endblock %}

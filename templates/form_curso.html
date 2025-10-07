@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}Crear curso{% endblock %}
+{% block content %}
+  <h2>Crear curso</h2>
+  <form method="post" action="{{ url_for('agregar_curso') }}">
+    <label>Nombre del curso:<br>
+      <input name="nombre">
+    </label><br><br>
+
+    <label>Descripción:<br>
+      <textarea name="descripcion" rows="3"></textarea>
+    </label><br><br>
+
+    <button type="submit">Guardar</button>
+  </form>
+
+  <p><a href="{{ url_for('listar_cursos') }}">Volver a la lista</a></p>
+{% endblock %}

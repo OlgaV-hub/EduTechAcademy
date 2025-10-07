@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8"/>
+  <title>{% block title %}EduTech{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('index') }}">Inicio</a>
+    <a href="{{ url_for('login') }}">Login</a>
+    <a href="{{ url_for('register') }}">Registro</a>
+    <a href="{{ url_for('listar_cursos') }}">Cursos</a>
+    <a href="{{ url_for('ver_foro') }}">Foro</a>
+  </nav>
+  <main>{% block content %}{% endblock %}</main>
+</body>
+</html>

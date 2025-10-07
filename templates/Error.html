@@ -1,0 +1,7 @@
+{% extends "base.html" %}
+{% block title %}Error{% endblock %}
+{% block content %}
+  <h2>Error</h2>
+  <p>Ya existe un curso con exactamente los mismos datos.</p>
+  <p><a href="{{ url_for('form_curso') }}">Volver al formulario</a></p>
+{% endblock %}

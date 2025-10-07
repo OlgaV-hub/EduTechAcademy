@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Cursos{% endblock %}
+{% block content %}
+  <h2>Cursos</h2>
+
+  {% if not cursos %}
+    <p>No hay cursos agregados aún.</p>
+  {% else %}
+    <ul>
+      {% for c in cursos %}
+        <li><strong>{{ c['nombre'] }}</strong>: {{ c['descripcion'] }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  <p><a href="{{ url_for('form_curso') }}">Crear curso</a></p>
+{% endblock %}
