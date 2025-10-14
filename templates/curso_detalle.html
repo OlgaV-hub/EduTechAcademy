@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{# <!-- {% extends "base.html" %}
 {% block content %}
 
 <h1>{{ curso.nombre }}</h1>
@@ -37,5 +37,59 @@
 
 <p><a href="{{ url_for('listar_cursos') }}">Volver al listado</a></p>
 
-{% endblock %}
+{% endblock %} --> #}
 
+
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-lg-8">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h3 class="card-title">{{ curso.nombre }}</h3>
+        <p class="text-muted">{{ curso.descripcion or '—' }}</p>
+
+        <div class="d-flex align-items-center gap-3 mb-3">
+          <span class="badge text-bg-secondary">Precio base</span>
+          <span class="fs-5">USD {{ '%.2f'|format(curso.precio or 0) }}</span>
+        </div>
+
+        <form class="row gy-2 gx-2 align-items-end" method="post" action="{{ url_for('convertir_precio', course_id=curso.id) }}">
+          <input type="hidden" name="amount" value="{{ curso.precio }}">
+          <div class="col-auto">
+            <label class="form-label">Convertir a</label>
+            <select class="form-select" name="to">
+              <option value="ARS" {% if moneda=='ARS' %}selected{% endif %}>ARS</option>
+              <option value="EUR" {% if moneda=='EUR' %}selected{% endif %}>EUR</option>
+              <option value="BRL" {% if moneda=='BRL' %}selected{% endif %}>BRL</option>
+            </select>
+          </div>
+          <div class="col-auto">
+            <button type="submit" class="btn btn-outline-primary">Convertir</button>
+          </div>
+        </form>
+
+        {% if converted is defined and converted is not none and not error %}
+          <div class="alert alert-success mt-3 mb-0">
+            Precio convertido: <strong>{{ '%.2f'|format(converted) }} {{ moneda }}</strong>
+          </div>
+        {% elif error %}
+          <div class="alert alert-warning mt-3 mb-0">{{ error }}</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12 col-lg-4">
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="mb-3">Inscripción</h5>
+        <form method="post" action="{{ url_for('inscribirme', course_id=curso.id) }}">
+          <button class="btn btn-primary w-100" type="submit">Inscribirme</button>
+        </form>
+        <a class="btn btn-link w-100 mt-2" href="{{ url_for('listar_cursos') }}">Volver al listado</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

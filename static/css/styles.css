@@ -1,0 +1,5 @@
+body { --bs-body-bg: #f7f9fc; }
+.navbar .navbar-brand { letter-spacing: .2px; }
+.card { border-radius: 14px; }
+.btn { border-radius: 10px; }
+.list-group-item.active { background: #0d6efd; border-color: #0d6efd; }

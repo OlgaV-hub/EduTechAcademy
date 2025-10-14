@@ -129,21 +129,16 @@ def login():
     if request.method == 'POST':
         username = request.form['username'].strip()
         password = request.form['password']
-        rol      = request.form['rol']  
+        rol      = request.form['rol']
 
         user = User.query.filter_by(username=username).first()
-        if not user:
-            return "Usuario o contraseña incorrectos", 401
 
-        # пароль верный?
-        if not bcrypt.check_password_hash(user.password, password):
-            return "Usuario o contraseña incorrectos", 401
+        if (not user) or (not bcrypt.check_password_hash(user.password, password)):
+            return render_template('login.html', error="Usuario o contraseña incorrectos")
 
-        # роль совпадает с сохранённой?
         if user.role != rol:
-            return "Rol incorrecto para este usuario", 403
+            return render_template('login.html', error="Rol incorrecto para este usuario")
 
-        # всё ок — логиним и ведём на нужную панель
         login_user(user)
         return redirect_by_role(user.role)
 
@@ -171,14 +166,14 @@ def register():
 @login_required
 def admin_panel():
     if current_user.role != 'admin':
-        return "Acceso denegado", 403
+        return render_template('403.html'), 403
     return render_template('admin.html')
 
 @app.route('/profesor')
 @login_required
 def profesor_panel():
     if current_user.role not in ('profesor', 'admin'):
-        return "Acceso denegado", 403
+        return render_template('403.html'), 403
     return render_template('profesor.html')
 
 @app.route('/estudiante')
@@ -237,8 +232,10 @@ def convertir_precio(course_id):
     )
 
 @app.route('/form_curso')
+@login_required
 def form_curso():
-    # Mostrar formulario de creación
+    if current_user.role not in ('profesor','admin'):
+        return render_template('403.html'), 403
     return render_template('form_curso.html')
 
 @app.route('/agregar_curso', methods=['POST'])
@@ -246,7 +243,7 @@ def form_curso():
 def agregar_curso():
     # (опционально) только profesor/admin могут создавать
     if current_user.role not in ('profesor', 'admin'):
-        return "Acceso denegado", 403
+        return render_template('403.html'), 403
 
     nombre      = request.form.get('nombre', '').strip()
     descripcion = request.form.get('descripcion', '').strip()
@@ -273,33 +270,35 @@ def agregar_curso():
 @app.route('/inscribirme/<int:course_id>', methods=['POST'])
 @login_required
 def inscribirme(course_id):
-    # запретим дубликаты
     ya = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
     if ya:
-        return redirect(url_for('mis_cursos'))  # уже записан
+        return redirect(url_for('mis_cursos', msg='ya_inscripto'))
 
-    # убедимся, что курс существует
     if not Course.query.get(course_id):
-        return "Curso no encontrado", 404
+        return redirect(url_for('listar_cursos', msg='curso_no_encontrado'))
 
     insc = Enrollment(user_id=current_user.id, course_id=course_id, status='pendiente')
     db.session.add(insc)
     db.session.commit()
-    return redirect(url_for('mis_cursos'))
+    return redirect(url_for('mis_cursos', msg='ok'))
 
 @app.route('/mis-cursos')
 @login_required
 def mis_cursos():
     inscripciones = Enrollment.query.filter_by(user_id=current_user.id).all()
-    # найдём объекты курсов по id
     cursos_ids = [i.course_id for i in inscripciones]
     cursos = Course.query.filter(Course.id.in_(cursos_ids)).all() if cursos_ids else []
-    return render_template('estudiante.html', cursos=cursos)
+    msg = request.args.get('msg')  # <— добавили
+    return render_template('estudiante.html', cursos=cursos, msg=msg)
 
 @app.route('/foro')
 def ver_foro():
     # Mostrar una lista de temas del foro de memoria
     return render_template('foro.html', temas=temas_foro)
+
+@app.errorhandler(404)
+def err_404(e):
+    return render_template('404.html'), 404
 
 if __name__ == '__main__':
     with app.app_context():

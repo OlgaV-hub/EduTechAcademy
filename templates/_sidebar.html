@@ -1,0 +1,15 @@
+<div class="list-group">
+    {% if current_user.role == 'admin' %}
+      <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}" href="{{ url_for('admin_panel') }}">Resumen</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('listar_cursos') }}">Cursos</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('form_curso') }}">Agregar curso</a>
+    {% elif current_user.role == 'profesor' %}
+      <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}" href="{{ url_for('profesor_panel') }}">Resumen</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('listar_cursos') }}">Mis cursos</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('form_curso') }}">Agregar curso</a>
+    {% else %}
+      <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}" href="{{ url_for('estudiante_panel') }}">Inicio</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('mis_cursos') }}">Mis cursos</a>
+      <a class="list-group-item list-group-item-action" href="{{ url_for('listar_cursos') }}">Todos los cursos</a>
+    {% endif %}
+  </div>

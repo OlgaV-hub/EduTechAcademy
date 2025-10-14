@@ -17,7 +17,7 @@
 </body>
 </html> --> #}
 
-<!doctype html>
+{# <!doctype html>
 <html lang="es">
 <head>
   <meta charset="utf-8">
@@ -45,5 +45,80 @@
 <!-- Контент страницы -->
 {% block content %}{% endblock %}
 
+</body>
+</html> #}
+
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>EduTech Academy</title>
+  <!-- Bootstrap -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Иконка и свой CSS (по желанию) -->
+  <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='app.css') }}">
+</head>
+<body class="bg-light">
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+  <div class="container">
+    <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">EduTech</a>
+    <button class="navbar-toggler" data-bs-toggle="collapse" data-bs-target="#topNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div id="topNav" class="collapse navbar-collapse">
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('listar_cursos') }}">Cursos</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('ver_foro') }}">Foro</a></li>
+        {% if current_user.is_authenticated and current_user.role in ('profesor','admin') %}
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('form_curso') }}">Agregar curso</a></li>
+        {% endif %}
+      </ul>
+      <ul class="navbar-nav">
+        {% if current_user.is_authenticated %}
+          <li class="nav-item">
+            {% if current_user.role == 'admin' %}
+              <a class="nav-link" href="{{ url_for('admin_panel') }}">Admin</a>
+            {% elif current_user.role == 'profesor' %}
+              <a class="nav-link" href="{{ url_for('profesor_panel') }}">Profesor</a>
+            {% else %}
+              <a class="nav-link" href="{{ url_for('estudiante_panel') }}">Estudiante</a>
+            {% endif %}
+          </li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('mis_cursos') }}">Mis cursos</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Salir</a></li>
+        {% else %}
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('login') }}">Iniciar sesión</a></li>
+          <li class="nav-item"><a class="nav-link" href="{{ url_for('register') }}">Registrarse</a></li>
+        {% endif %}
+      </ul>
+    </div>
+  </div>
+</nav>
+
+<main class="container my-4">
+  <!-- Flash mensajes -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="mb-3">
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category }} shadow-sm mb-2" role="alert">{{ message }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<footer class="border-top py-3">
+  <div class="container text-muted small">
+    © EduTech Academy — {{ 2025 }}
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>

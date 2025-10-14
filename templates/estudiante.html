@@ -1,4 +1,4 @@
-{% extends "base.html" %}
+{# <!-- {% extends "base.html" %}
 {% block content %}<h2>Panel Estudiante</h2>
 
 <h1>Mis cursos</h1>
@@ -14,5 +14,41 @@
   {% endfor %}
 </ul>
 
+{% endblock %}  --> #}
+
+{% extends "base.html" %}
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-md-3">{% set active='resumen' %}{% include "_sidebar.html" %}</div>
+  <div class="col-12 col-md-9">
+    <h2 class="mb-3">Panel Estudiante</h2>
+
+    {% if msg == 'ok' %}
+    <div class="alert alert-success">Inscripción realizada</div>
+        {% elif msg == 'ya_inscripto' %}
+    <div class="alert alert-info">Ya estás inscripto en este curso</div>
+        {% elif msg == 'curso_no_encontrado' %}
+    <div class="alert alert-warning">Curso no encontrado</div>
+        {% endif %}
+
+    {% if cursos %}
+      <div class="row row-cols-1 row-cols-md-2 g-3">
+        {% for c in cursos %}
+          <div class="col">
+            <div class="card h-100 shadow-sm">
+              <div class="card-body">
+                <h5 class="card-title">{{ c.nombre }}</h5>
+                <p class="card-text text-muted">{{ c.descripcion or '—' }}</p>
+                <a href="{{ url_for('detalle_curso', course_id=c.id) }}" class="btn btn-outline-primary btn-sm">Ver detalle</a>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="alert alert-info">Aún no estás inscripto en cursos.</div>
+    {% endif %}
+  </div>
+</div>
 {% endblock %}
 

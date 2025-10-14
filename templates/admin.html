@@ -1,2 +1,19 @@
 {% extends "base.html" %}
-{% block content %}<h2>Panel Admin</h2>{% endblock %}
+{% block content %} <h2>Panel Admin</h2>
+<div class="row g-4">
+  <div class="col-12 col-md-3">{% set active='resumen' %}{% include "_sidebar.html" %}</div>
+  <div class="col-12 col-md-9">
+    <h2 class="mb-3">Panel Admin</h2>
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <p class="mb-2 text-muted">Resumen del sistema</p>
+        <ul class="mb-0">
+          <li>Usuarios por rol</li>
+          <li>Cursos activos</li>
+          <li>Inscripciones recientes</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
