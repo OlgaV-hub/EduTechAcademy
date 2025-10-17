@@ -1,4 +1,4 @@
-<!-- {% extends "base.html" %}
+{# <!-- {% extends "base.html" %}
 {% block content %}
 <h2>Panel Registrarse</h2>
 
@@ -15,7 +15,7 @@
   <button type="submit">Registrar</button>
 </form>
 
-{% endblock %} -->
+{% endblock %} --> #}
 
 {% extends "base.html" %}
 {% block content %}
@@ -23,7 +23,7 @@
   <div class="col-12 col-md-6 col-lg-4">
     <div class="card shadow-sm">
       <div class="card-body">
-        <h3 class="mb-3">Iniciar sesión</h3>
+        <h3 class="mb-3">Registro</h3>
         <form method="post">
           <div class="mb-3">
             <label class="form-label">Usuario</label>
@@ -33,15 +33,16 @@
             <label class="form-label">Contraseña</label>
             <input class="form-control" type="password" name="password" required>
           </div>
-          <div class="mb-3">
+          <!-- <div class="mb-3">
             <label class="form-label">Rol</label>
             <select class="form-select" name="rol" required>
               <option value="estudiante">Estudiante</option>
               <option value="profesor">Profesor</option>
               <option value="admin">Admin</option>
             </select>
-          </div>
-          <button class="btn btn-primary w-100" type="submit">Entrar</button>
+          </div> -->
+          <input type="hidden" name="rol" value="estudiante">
+          <button class="btn btn-primary w-100" type="submit">Registrarse</button>
         </form>
         <div class="text-center mt-3">
           <a href="{{ url_for('register') }}">Crear cuenta</a>

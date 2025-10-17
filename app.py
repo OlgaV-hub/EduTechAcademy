@@ -6,7 +6,7 @@ FX_API_BASE = os.getenv('FX_API_BASE', 'https://api.exchangerate.host')
 FX_API_FALLBACK = os.getenv('FX_API_FALLBACK', 'https://open.er-api.com/v6')
 FX_API_ALT = os.getenv('FX_API_ALT', 'https://api.frankfurter.app')
 
-from flask import Flask, render_template, request, redirect, url_for
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import (
@@ -17,8 +17,8 @@ from flask_login import (
 app = Flask(__name__)
 
 # === конфиг приложения/БД ===
-app.config['SECRET_KEY'] = 'clave_secreta_123'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///users.db'
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or 'clave_secreta_123'
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') or 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 # === инициализация зависимостей ===
@@ -124,41 +124,92 @@ def index():
     # Mostrar la página de inicio con enlaces para Login/Registro
     return render_template('index.html')
 
-@app.route('/login', methods=['GET', 'POST'])
+# @app.route('/login', methods=['GET', 'POST'])
+# def login():
+#     if request.method == 'POST':
+#         username = request.form['username'].strip()
+#         password = request.form['password']
+#         rol      = request.form['rol']
+
+#         user = User.query.filter_by(username=username).first()
+
+#         if (not user) or (not bcrypt.check_password_hash(user.password, password)):
+#             return render_template('login.html', error="Usuario o contraseña incorrectos")
+
+#         if user.role != rol:
+#             return render_template('login.html', error="Rol incorrecto para este usuario")
+
+#         login_user(user)
+#         return redirect_by_role(user.role)
+
+#     return render_template('login.html')
+
+@app.route('/login', methods=['GET','POST'])
 def login():
     if request.method == 'POST':
-        username = request.form['username'].strip()
-        password = request.form['password']
-        rol      = request.form['rol']
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
+
+        if not username or not password:
+            flash('Complete usuario y contraseña.', 'warning')
+            return redirect(url_for('login'))
 
         user = User.query.filter_by(username=username).first()
+        if not user:
+            flash('Usuario no encontrado.', 'danger')
+            return redirect(url_for('login'))
 
-        if (not user) or (not bcrypt.check_password_hash(user.password, password)):
-            return render_template('login.html', error="Usuario o contraseña incorrectos")
-
-        if user.role != rol:
-            return render_template('login.html', error="Rol incorrecto para este usuario")
+        # пароль хранится как bcrypt-хэш в user.password
+        if not bcrypt.check_password_hash(user.password, password):
+            flash('Contraseña incorrecta.', 'danger')
+            return redirect(url_for('login'))
 
         login_user(user)
-        return redirect_by_role(user.role)
+        flash('Sesión iniciada.', 'success')
+
+        # ВАЖНО: используем ИМЕНА ЭНДПОИНТОВ ИЗ ТВОЕГО КОДА
+        if user.role == 'admin':
+            return redirect(url_for('admin_panel'))
+        elif user.role == 'profesor':
+            return redirect(url_for('profesor_panel'))
+        else:
+            return redirect(url_for('estudiante_panel'))
 
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if request.method == 'POST':
-        username = request.form['username'].strip()
-        password = request.form['password']
-        rol      = request.form.get('rol', 'estudiante')  # admin | profesor | estudiante
+        username = (request.form.get('username') or '').strip()
+        password = request.form.get('password') or ''
 
+        # жёстко назначаем роль студенту
+        role = 'estudiante'
+
+        if not username or not password:
+            flash('Debe completar usuario y contraseña.', 'warning')
+            return redirect(url_for('register'))
+
+        # проверяем дубликаты по username (в твоей модели это unique)
         if User.query.filter_by(username=username).first():
-            return "Usuario ya existe", 400
+            flash('El usuario ya existe.', 'warning')
+            return redirect(url_for('register'))
 
         hashed_pw = bcrypt.generate_password_hash(password).decode('utf-8')
-        user = User(username=username, password=hashed_pw, role=rol)
+        user = User(username=username, password=hashed_pw, role=role)
         db.session.add(user)
         db.session.commit()
-        return redirect(url_for('login'))
+
+        flash('Registro exitoso. Sesión iniciada.', 'success')
+        login_user(user)
+
+        # перенаправление по роли (имена эндпоинтов — как в твоём коде)
+        if user.role == 'admin':
+            return redirect(url_for('admin_panel'))
+        elif user.role == 'profesor':
+            return redirect(url_for('profesor_panel'))
+        else:
+            return redirect(url_for('estudiante_panel'))
 
     return render_template('register.html')
 
@@ -179,7 +230,10 @@ def profesor_panel():
 @app.route('/estudiante')
 @login_required
 def estudiante_panel():
-    return render_template('estudiante.html')
+    if current_user.role != 'estudiante':
+        return render_template('403.html'), 403
+    # вкладка "Inicio" активна по умолчанию
+    return render_template('estudiante.html', active='resumen', cursos=[])
 
 @app.route('/logout')
 @login_required
@@ -203,10 +257,10 @@ def detalle_curso(course_id):
     return render_template(
         'curso_detalle.html',
         curso=curso,
-        converted=None,   # <— добавили
-        error=None,       # <— добавили
-        moneda=None,      # <— опционально, чтобы не ругалось
-        amount=None       # <— опционально
+        converted=None,   
+        error=None,       
+        moneda=None,     
+        amount=None       
     )
 
 @app.route('/cursos/<int:course_id>/convert', methods=['POST'])
@@ -241,35 +295,99 @@ def form_curso():
 @app.route('/agregar_curso', methods=['POST'])
 @login_required
 def agregar_curso():
-    # (опционально) только profesor/admin могут создавать
-    if current_user.role not in ('profesor', 'admin'):
+    if current_user.role not in ('admin', 'profesor'):
         return render_template('403.html'), 403
 
-    nombre      = request.form.get('nombre', '').strip()
-    descripcion = request.form.get('descripcion', '').strip()
-    precio_str  = request.form.get('precio', '0').strip()
-
+    nombre = (request.form.get('nombre') or '').strip()
+    descripcion = (request.form.get('descripcion') or '').strip()
     try:
-        precio = float(precio_str)
+        precio = float(request.form.get('precio') or 0)
     except ValueError:
-        precio = 0.0
+        precio = 0
 
     if not nombre:
         return "Nombre es obligatorio", 400
+
+    # Duplicado (mismo profesor + mismo nombre)
+    exist = Course.query.filter_by(
+        nombre=nombre,
+        teacher_id=current_user.id
+    ).first()
+    if exist:
+        flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
+        return redirect(url_for('form_curso'))
 
     nuevo = Course(
         nombre=nombre,
         descripcion=descripcion,
         precio=precio,
-        teacher_id=current_user.id  # opcional
+        teacher_id=current_user.id if current_user.role == 'profesor' else None
     )
     db.session.add(nuevo)
     db.session.commit()
+    flash('Curso creado', 'success')
+    return redirect(url_for('listar_cursos'))
+
+@app.route('/cursos/<int:course_id>/edit', methods=['GET', 'POST'])
+@login_required
+def editar_curso(course_id):
+    curso = Course.query.get_or_404(course_id)
+
+    # Permisos: admin o profesor dueño
+    if current_user.role not in ('admin', 'profesor'):
+        return render_template('403.html'), 403
+    if current_user.role != 'admin' and curso.teacher_id != current_user.id:
+        return render_template('403.html'), 403
+
+    if request.method == 'POST':
+        nombre = (request.form.get('nombre') or '').strip()
+        descripcion = (request.form.get('descripcion') or '').strip()
+        try:
+            precio = float(request.form.get('precio') or 0)
+        except ValueError:
+            precio = 0
+
+        # Duplicado con el mismo profesor (excluyendo el curso actual)
+        dup = Course.query.filter(
+            Course.id != curso.id,
+            Course.teacher_id == curso.teacher_id,
+            Course.nombre == nombre
+        ).first()
+        if dup:
+            flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
+            return redirect(url_for('editar_curso', course_id=curso.id))
+
+        curso.nombre = nombre
+        curso.descripcion = descripcion
+        curso.precio = precio
+        db.session.commit()
+        flash('Curso actualizado', 'success')
+        return redirect(url_for('listar_cursos'))
+
+    # GET
+    return render_template('form_curso.html', curso=curso)
+
+
+@app.route('/cursos/<int:course_id>/delete', methods=['POST'])
+@login_required
+def eliminar_curso(course_id):
+    curso = Course.query.get_or_404(course_id)
+
+    if current_user.role not in ('admin', 'profesor'):
+        return render_template('403.html'), 403
+    if current_user.role != 'admin' and curso.teacher_id != current_user.id:
+        return render_template('403.html'), 403
+
+    db.session.delete(curso)
+    db.session.commit()
+    flash('Curso eliminado', 'info')
     return redirect(url_for('listar_cursos'))
 
 @app.route('/inscribirme/<int:course_id>', methods=['POST'])
 @login_required
 def inscribirme(course_id):
+    if current_user.role != 'estudiante':
+        return render_template('403.html'), 403
     ya = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
     if ya:
         return redirect(url_for('mis_cursos', msg='ya_inscripto'))
@@ -285,11 +403,14 @@ def inscribirme(course_id):
 @app.route('/mis-cursos')
 @login_required
 def mis_cursos():
+    if current_user.role != 'estudiante':
+        return render_template('403.html'), 403
+
     inscripciones = Enrollment.query.filter_by(user_id=current_user.id).all()
     cursos_ids = [i.course_id for i in inscripciones]
     cursos = Course.query.filter(Course.id.in_(cursos_ids)).all() if cursos_ids else []
-    msg = request.args.get('msg')  # <— добавили
-    return render_template('estudiante.html', cursos=cursos, msg=msg)
+
+    return render_template('estudiante.html', active='mis', cursos=cursos)
 
 @app.route('/foro')
 def ver_foro():
@@ -300,8 +421,31 @@ def ver_foro():
 def err_404(e):
     return render_template('404.html'), 404
 
+def seed_usuarios_si_hace_falta():
+    """Создаёт admin и profesor, если их ещё нет. Идемпотентно."""
+    created = []
+
+    def ensure(username, password, role):
+        u = User.query.filter_by(username=username).first()
+        if not u:
+            # У ТЕБЯ в модели поле называется password, и ты хранишь там хэш.
+            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+            u = User(username=username, password=password_hash, role=role)
+            db.session.add(u)
+            db.session.commit()
+            created.append(f'{username} ({role})')
+
+    ensure('admin', 'admin123', 'admin')
+    ensure('prof',  'prof123',  'profesor')
+
+    if created:
+        print('Seed usuarios -> creados:', created)
+    else:
+        print('Seed usuarios -> ya existen')
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_cursos_si_hace_falta()
+        seed_usuarios_si_hace_falta() 
     app.run(debug=True)
