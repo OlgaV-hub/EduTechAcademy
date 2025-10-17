@@ -443,6 +443,17 @@ def seed_usuarios_si_hace_falta():
     else:
         print('Seed usuarios -> ya existen')
 
+# --- INIT DB EN RENDER (se ejecuta al primer request) ---
+@app.before_first_request
+def _init_db_and_seed():
+    from flask import current_app
+    with current_app.app_context():
+        db.create_all()
+        # tus funciones ya existen en tu código:
+        seed_cursos_si_hace_falta()
+        seed_usuarios_si_hace_falta()
+# --- fin ---
+
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
