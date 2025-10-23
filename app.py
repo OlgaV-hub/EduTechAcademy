@@ -1,5 +1,9 @@
 import os, requests
 from dotenv import load_dotenv
+from auth.routes import auth_bp, oauth  
+from flask_login import UserMixin       
+from flask import session             
+from flask import Flask, render_template, request, redirect, url_for, flash  
 
 load_dotenv()
 FX_API_BASE = os.getenv('FX_API_BASE', 'https://api.exchangerate.host')
@@ -21,11 +25,26 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or 'clave_secreta_123'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') or 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# === Google OAuth (как у профе) ===
+app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID")
+app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET")
+
+oauth.init_app(app)
+app.register_blueprint(auth_bp, url_prefix="/auth")
+
 # === инициализация зависимостей ===
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'   # гости будут редиректиться сюда
+
+class GUser(UserMixin):
+    def __init__(self, gid, name, email, role="estudiante"):
+        self.id = str(gid)        # sub из Google
+        self.name = name
+        self.email = email
+        self.username = email or name
+        self.role = role
 
 class User(UserMixin, db.Model):
     id       = db.Column(db.Integer, primary_key=True)
@@ -115,7 +134,18 @@ def seed_cursos_si_hace_falta():
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    g = session.get("user")
+    if g and str(g.get("id")) == str(user_id):
+        return GUser(
+            str(g["id"]),
+            g.get("name"),
+            g.get("email"),
+            g.get("role", "estudiante"),
+        )
+    try:
+        return User.query.get(int(user_id))
+    except Exception:
+        return None
 
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
 
