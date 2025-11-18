@@ -3,3 +3,76 @@ body { --bs-body-bg: #f7f9fc; }
 .card { border-radius: 14px; }
 .btn { border-radius: 10px; }
 .list-group-item.active { background: #0a2c5e; border-color: #0a2c5e; }
+
+/* HERO BANNER */
+.hero-banner {
+    width: 100%;
+    display: flex;
+    justify-content: center;   
+    align-items: center;       
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+.hero-banner .hero-img {
+    width: 100%;
+    max-width: 1920px;  
+}
+
+/* CTA BLOCK */
+.home-actions {
+    text-align: center;
+    margin-top: 30px;
+}
+
+.home-title {
+    margin-bottom: 20px;
+    font-size: 2.2rem;
+    color: #0E4C6F;
+}
+
+.btn-primary, .btn-secondary {
+    padding: 10px 20px;
+    margin: 0 8px;
+    border-radius: 8px;
+    text-decoration: none;
+    color: white;
+}
+
+.btn-primary {
+    background-color: #0E4C6F;
+}
+
+.btn-secondary {
+    background-color: #267D9A;
+}
+
+.btn-primary:hover,
+.btn-secondary:hover {
+    opacity: 0.85;
+}
+
+.home-actions {
+    text-align: center;
+    margin-top: 30px;
+    margin-bottom: 20px;
+}
+
+.home-title {
+    margin-bottom: 20px;
+    font-size: 2.2rem;
+    color: #0E4C6F;
+}
+
+
+.hero-banner {
+    margin: 0 auto 40px auto;  
+    max-width: 1200px;         
+}
+
+.hero-banner .hero-img {
+    display: block;
+    width: 100%;              
+    height: auto;
+    margin: 0 auto;           
+}

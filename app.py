@@ -1,14 +1,7 @@
-import os, requests
-from dotenv import load_dotenv
-from auth.routes import auth_bp, oauth  
-from flask_login import UserMixin       
-from flask import session             
-from flask import Flask, render_template, request, redirect, url_for, flash  
+import os
+import requests
 
-load_dotenv()
-FX_API_BASE = os.getenv('FX_API_BASE', 'https://api.exchangerate.host')
-FX_API_FALLBACK = os.getenv('FX_API_FALLBACK', 'https://open.er-api.com/v6')
-FX_API_ALT = os.getenv('FX_API_ALT', 'https://api.frankfurter.app')
+from dotenv import load_dotenv
 
 from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
@@ -18,36 +11,57 @@ from flask_login import (
     login_required, current_user
 )
 
+from auth import auth_bp, oauth  # blueprint и OAuth из auth/
+
+
+# =========================
+# 1) CONFIG & INIT
+# =========================
+
+load_dotenv()
+
+# --- FX API endpoints ---
+FX_API_BASE = os.getenv('FX_API_BASE', 'https://api.exchangerate.host')
+FX_API_FALLBACK = os.getenv('FX_API_FALLBACK', 'https://open.er-api.com/v6')
+FX_API_ALT = os.getenv('FX_API_ALT', 'https://api.frankfurter.app')
+
+# --- Flask app ---
 app = Flask(__name__)
 
-# === конфиг приложения/БД ===
+# Конфиг приложения / БД
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or 'clave_secreta_123'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') or 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# === Google OAuth (как у профе) ===
+# Конфиг Google OAuth (как у профе)
 app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID")
 app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET")
 
+# Регистрация OAuth-клиента и auth-blueprint
 oauth.init_app(app)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
-# === инициализация зависимостей ===
+# --- Расширения ---
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
 login_manager.login_view = 'login'
 
-# Привязываем расширения к приложению (то, о чём ругается ошибка)
 db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
+
+
+# =========================
+# 2) MODELS
+# =========================
 
 class User(UserMixin, db.Model):
     id       = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role     = db.Column(db.String(20), nullable=False, default='estudiante')
+
 
 class Course(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
@@ -56,11 +70,17 @@ class Course(db.Model):
     precio      = db.Column(db.Float, nullable=False, default=0.0) # price
     teacher_id  = db.Column(db.Integer, nullable=True)             # opcional: id del profe
 
+
 class Enrollment(db.Model):
-    id         = db.Column(db.Integer, primary_key=True)
-    user_id    = db.Column(db.Integer, nullable=False)
-    course_id  = db.Column(db.Integer, nullable=False)
-    status     = db.Column(db.String(20), nullable=False, default='pendiente')
+    id        = db.Column(db.Integer, primary_key=True)
+    user_id   = db.Column(db.Integer, nullable=False)
+    course_id = db.Column(db.Integer, nullable=False)
+    status    = db.Column(db.String(20), nullable=False, default='pendiente')
+
+
+# =========================
+# 3) SERVICES & HELPERS
+# =========================
 
 def login_or_register_google_user(user_info):
     """
@@ -92,6 +112,7 @@ def login_or_register_google_user(user_info):
 
     return user, None
 
+
 def convertir_monto_desde_usd(amount: float, to: str):
     """
     Пробуем 2–3 бесплатных API. Возвращаем (valor_convertido, error_str).
@@ -113,7 +134,7 @@ def convertir_monto_desde_usd(amount: float, to: str):
                     if data.get("result") is not None:
                         return float(data["result"]), None
 
-            # 2) open.er-api.com (без ключа; берем курс и умножаем)
+            # 2) open.er-api.com (без ключа; берём курс и умножаем)
             elif 'open-er-api' in base or 'open.er-api.com' in base:
                 r = requests.get(f"{base}/latest/USD", timeout=6)
                 if r.ok:
@@ -143,6 +164,7 @@ def convertir_monto_desde_usd(amount: float, to: str):
 
     return None, "Todas las APIs fallaron o no están disponibles ahora."
 
+
 def redirect_by_role(role: str):
     if role == 'admin':
         return redirect(url_for('admin_panel'))
@@ -150,11 +172,13 @@ def redirect_by_role(role: str):
         return redirect(url_for('profesor_panel'))
     return redirect(url_for('estudiante_panel'))
 
+
 # Даём доступ к этим функциям через объект app,
 # чтобы blueprints могли их вызывать через current_app,
 # не импортируя модуль app вторым разом.
 app.login_or_register_google_user = login_or_register_google_user
 app.redirect_by_role = redirect_by_role
+
 
 def seed_cursos_si_hace_falta():
     """Создаёт 1–2 курса, если таблица пустая."""
@@ -165,6 +189,7 @@ def seed_cursos_si_hace_falta():
         ])
         db.session.commit()
 
+
 @login_manager.user_loader
 def load_user(user_id):
     """Flask-Login: получить пользователя по ID (всегда из БД)."""
@@ -173,34 +198,65 @@ def load_user(user_id):
     except Exception:
         return None
 
+
+# Простейший форум в памяти
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
+
+
+def seed_usuarios_si_hace_falta():
+    """Создаёт admin и profesor, если их ещё нет. Идемпотентно."""
+    created = []
+
+    def ensure(username, password, role):
+        u = User.query.filter_by(username=username).first()
+        if not u:
+            # В модели поле называется password, там хранится хэш
+            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+            u = User(username=username, password=password_hash, role=role)
+            db.session.add(u)
+            db.session.commit()
+            created.append(f'{username} ({role})')
+
+    ensure('admin', 'admin123', 'admin')
+    ensure('prof',  'prof123',  'profesor')
+
+    if created:
+        print('Seed usuarios -> creados:', created)
+    else:
+        print('Seed usuarios -> ya existen')
+
+
+# --- INIT DB EN RENDER / PROD (Flask 3.x, sin before_first_request) ---
+
+def _init_db_and_seed():
+    with app.app_context():
+        db.create_all()
+        # Если эти функции уже есть — они просто создадут записи, если их нет
+        try:
+            seed_cursos_si_hace_falta()
+        except Exception:
+            pass
+        try:
+            seed_usuarios_si_hace_falta()
+        except Exception:
+            pass
+
+
+# вызываем инициализацию на старте процесса (импорт модуля под gunicorn)
+_init_db_and_seed()
+
+
+# =========================
+# 4) ROUTES (Views)
+# =========================
 
 @app.route('/')
 def index():
     # Mostrar la página de inicio con enlaces para Login/Registro
     return render_template('index.html')
 
-# @app.route('/login', methods=['GET', 'POST'])
-# def login():
-#     if request.method == 'POST':
-#         username = request.form['username'].strip()
-#         password = request.form['password']
-#         rol      = request.form['rol']
 
-#         user = User.query.filter_by(username=username).first()
-
-#         if (not user) or (not bcrypt.check_password_hash(user.password, password)):
-#             return render_template('login.html', error="Usuario o contraseña incorrectos")
-
-#         if user.role != rol:
-#             return render_template('login.html', error="Rol incorrecto para este usuario")
-
-#         login_user(user)
-#         return redirect_by_role(user.role)
-
-#     return render_template('login.html')
-
-@app.route('/login', methods=['GET','POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = (request.form.get('username') or '').strip()
@@ -223,7 +279,7 @@ def login():
         login_user(user)
         flash('Sesión iniciada.', 'success')
 
-        # ВАЖНО: используем ИМЕНА ЭНДПОИНТОВ ИЗ ТВОЕГО КОДА
+        # Имена эндпоинтов — как в твоём коде
         if user.role == 'admin':
             return redirect(url_for('admin_panel'))
         elif user.role == 'profesor':
@@ -232,6 +288,7 @@ def login():
             return redirect(url_for('estudiante_panel'))
 
     return render_template('login.html')
+
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
@@ -246,7 +303,7 @@ def register():
             flash('Debe completar usuario y contraseña.', 'warning')
             return redirect(url_for('register'))
 
-        # проверяем дубликаты по username (в твоей модели это unique)
+        # проверяем дубликаты по username
         if User.query.filter_by(username=username).first():
             flash('El usuario ya existe.', 'warning')
             return redirect(url_for('register'))
@@ -259,7 +316,6 @@ def register():
         flash('Registro exitoso. Sesión iniciada.', 'success')
         login_user(user)
 
-        # перенаправление по роли (имена эндпоинтов — как в твоём коде)
         if user.role == 'admin':
             return redirect(url_for('admin_panel'))
         elif user.role == 'profesor':
@@ -269,12 +325,16 @@ def register():
 
     return render_template('register.html')
 
+
+# --- Панель администратора + CRUD пользователей ---
+
 @app.route('/admin')
 @login_required
 def admin_panel():
     if current_user.role != 'admin':
         return render_template('403.html'), 403
     return render_template('admin.html')
+
 
 @app.route('/admin/users')
 @login_required
@@ -294,7 +354,6 @@ def admin_update_user_role(user_id):
         return render_template('403.html'), 403
 
     new_role = request.form.get('role')
-
     user = User.query.get_or_404(user_id)
     user.role = new_role
     db.session.commit()
@@ -319,12 +378,16 @@ def admin_delete_user(user_id):
 
     return redirect(url_for('admin_users'))
 
+
+# --- Панели profesor / estudiante ---
+
 @app.route('/profesor')
 @login_required
 def profesor_panel():
     if current_user.role not in ('profesor', 'admin'):
         return render_template('403.html'), 403
     return render_template('profesor.html')
+
 
 @app.route('/estudiante')
 @login_required
@@ -334,21 +397,29 @@ def estudiante_panel():
     # вкладка "Inicio" активна по умолчанию
     return render_template('estudiante.html', active='resumen', cursos=[])
 
+
+# --- Auth utils ---
+
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
     return redirect(url_for('index'))
 
+
 @app.route('/protected')
 @login_required
 def protected():
     return f"Hola {current_user.username} (rol: {current_user.role})"
 
+
+# --- Cursos y FX ---
+
 @app.route('/cursos')
 def listar_cursos():
     cursos = Course.query.all()
     return render_template('cursos.html', cursos=cursos)
+
 
 @app.route('/cursos/<int:course_id>')
 def detalle_curso(course_id):
@@ -356,11 +427,12 @@ def detalle_curso(course_id):
     return render_template(
         'curso_detalle.html',
         curso=curso,
-        converted=None,   
-        error=None,       
-        moneda=None,     
-        amount=None       
+        converted=None,
+        error=None,
+        moneda=None,
+        amount=None
     )
+
 
 @app.route('/cursos/<int:course_id>/convert', methods=['POST'])
 def convertir_precio(course_id):
@@ -384,12 +456,14 @@ def convertir_precio(course_id):
         amount=amount
     )
 
+
 @app.route('/form_curso')
 @login_required
 def form_curso():
-    if current_user.role not in ('profesor','admin'):
+    if current_user.role not in ('profesor', 'admin'):
         return render_template('403.html'), 403
     return render_template('form_curso.html')
+
 
 @app.route('/agregar_curso', methods=['POST'])
 @login_required
@@ -427,6 +501,7 @@ def agregar_curso():
     flash('Curso creado', 'success')
     return redirect(url_for('listar_cursos'))
 
+
 @app.route('/cursos/<int:course_id>/edit', methods=['GET', 'POST'])
 @login_required
 def editar_curso(course_id):
@@ -446,7 +521,7 @@ def editar_curso(course_id):
         except ValueError:
             precio = 0
 
-        # Duplicado con el mismo profesor (excluyendo el curso actual)
+        # Дубликат с тем же профессором (исключая текущий курс)
         dup = Course.query.filter(
             Course.id != curso.id,
             Course.teacher_id == curso.teacher_id,
@@ -482,22 +557,32 @@ def eliminar_curso(course_id):
     flash('Curso eliminado', 'info')
     return redirect(url_for('listar_cursos'))
 
+
 @app.route('/inscribirme/<int:course_id>', methods=['POST'])
 @login_required
 def inscribirme(course_id):
     if current_user.role != 'estudiante':
         return render_template('403.html'), 403
-    ya = Enrollment.query.filter_by(user_id=current_user.id, course_id=course_id).first()
+
+    ya = Enrollment.query.filter_by(
+        user_id=current_user.id,
+        course_id=course_id
+    ).first()
     if ya:
         return redirect(url_for('mis_cursos', msg='ya_inscripto'))
 
     if not Course.query.get(course_id):
         return redirect(url_for('listar_cursos', msg='curso_no_encontrado'))
 
-    insc = Enrollment(user_id=current_user.id, course_id=course_id, status='pendiente')
+    insc = Enrollment(
+        user_id=current_user.id,
+        course_id=course_id,
+        status='pendiente'
+    )
     db.session.add(insc)
     db.session.commit()
     return redirect(url_for('mis_cursos', msg='ok'))
+
 
 @app.route('/mis-cursos')
 @login_required
@@ -511,59 +596,29 @@ def mis_cursos():
 
     return render_template('estudiante.html', active='mis', cursos=cursos)
 
+
+# --- Foro ---
+
 @app.route('/foro')
 def ver_foro():
     # Mostrar una lista de temas del foro de memoria
     return render_template('foro.html', temas=temas_foro)
 
+
+# --- Error handlers ---
+
 @app.errorhandler(404)
 def err_404(e):
     return render_template('404.html'), 404
 
-def seed_usuarios_si_hace_falta():
-    """Создаёт admin и profesor, если их ещё нет. Идемпотентно."""
-    created = []
 
-    def ensure(username, password, role):
-        u = User.query.filter_by(username=username).first()
-        if not u:
-            # У ТЕБЯ в модели поле называется password, и ты хранишь там хэш.
-            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-            u = User(username=username, password=password_hash, role=role)
-            db.session.add(u)
-            db.session.commit()
-            created.append(f'{username} ({role})')
-
-    ensure('admin', 'admin123', 'admin')
-    ensure('prof',  'prof123',  'profesor')
-
-    if created:
-        print('Seed usuarios -> creados:', created)
-    else:
-        print('Seed usuarios -> ya existen')
-
-# --- INIT DB EN RENDER / PROD (Flask 3.x, sin before_first_request) ---
-def _init_db_and_seed():
-    from flask import current_app
-    with app.app_context():
-        db.create_all()
-        # Если эти функции уже есть — они просто создадут записи, если их нет
-        try:
-            seed_cursos_si_hace_falta()
-        except Exception:
-            pass
-        try:
-            seed_usuarios_si_hace_falta()
-        except Exception:
-            pass
-
-# вызываем инициализацию на старте процесса (импорт модуля под gunicorn)
-_init_db_and_seed()
-# --- fin ---
+# =========================
+# MAIN
+# =========================
 
 if __name__ == '__main__':
     with app.app_context():
         db.create_all()
         seed_cursos_si_hace_falta()
-        seed_usuarios_si_hace_falta() 
+        seed_usuarios_si_hace_falta()
     app.run(debug=True)
