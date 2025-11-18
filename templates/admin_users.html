@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h1>Usuarios del sistema</h1>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Username / Email</th>
+            <th>Rol</th>
+            <th>Acciones</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for u in users %}
+            <tr>
+                <td>{{ u.id }}</td>
+                <td>{{ u.username }}</td>
+                <td>
+                    {# Форма изменения роли #}
+                    <form action="{{ url_for('admin_update_user_role', user_id=u.id) }}" method="post" class="d-flex">
+                        <select name="role" class="form-select form-select-sm me-2">
+                            <option value="estudiante" {{ 'selected' if u.role == 'estudiante' else '' }}>estudiante</option>
+                            <option value="profesor"   {{ 'selected' if u.role == 'profesor'   else '' }}>profesor</option>
+                            <option value="admin"      {{ 'selected' if u.role == 'admin'      else '' }}>admin</option>
+                        </select>
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            Cambiar
+                        </button>
+                    </form>
+                </td>
+                <td>
+                    {# Кнопка удаления пользователя #}
+                    <form action="{{ url_for('admin_delete_user', user_id=u.id) }}" method="post" onsubmit="return confirm('¿Eliminar este usuario?');">
+                        <button type="submit" class="btn btn-sm btn-danger">
+                            Eliminar
+                        </button>
+                    </form>
+                </td>
+            </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+{% endblock %}

@@ -49,3 +49,31 @@ SECRET_KEY = clave_secreta
 DATABASE_URL = sqlite:///users.db
 
 Presionar Deploy y abrir la URL generada.
+
+## Google OAuth (Login con Google)
+
+La aplicación permite iniciar sesión con Google usando OAuth 2.0.
+
+### Cómo funciona
+
+- El usuario hace clic en **Iniciar sesión con Google**.
+- Google devuelve los datos del usuario (email, nombre, id).
+- Se busca ese email en la base local (`User`):
+  - si existe → se usa su rol actual (admin / profesor / estudiante);
+  - si no existe → se crea un usuario nuevo con rol **estudiante**.
+- Se inicia sesión con `login_user()` (Flask-Login).
+- Se redirige al panel correspondiente según el rol:
+  - `/admin`
+  - `/profesor`
+  - `/estudiante`
+
+### Requisitos en `.env`
+
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=http://127.0.0.1:5000/auth/authorize
+
+### Gestión de roles
+
+El administrador puede cambiar roles desde  
+`/admin/users` (listar, cambiar rol, eliminar).

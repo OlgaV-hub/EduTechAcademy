@@ -33,18 +33,15 @@ oauth.init_app(app)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
 # === инициализация зависимостей ===
-db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
-login_manager = LoginManager(app)
-login_manager.login_view = 'login'   # гости будут редиректиться сюда
+db = SQLAlchemy()
+bcrypt = Bcrypt()
+login_manager = LoginManager()
+login_manager.login_view = 'login'
 
-class GUser(UserMixin):
-    def __init__(self, gid, name, email, role="estudiante"):
-        self.id = str(gid)        # sub из Google
-        self.name = name
-        self.email = email
-        self.username = email or name
-        self.role = role
+# Привязываем расширения к приложению (то, о чём ругается ошибка)
+db.init_app(app)
+bcrypt.init_app(app)
+login_manager.init_app(app)
 
 class User(UserMixin, db.Model):
     id       = db.Column(db.Integer, primary_key=True)
@@ -64,6 +61,36 @@ class Enrollment(db.Model):
     user_id    = db.Column(db.Integer, nullable=False)
     course_id  = db.Column(db.Integer, nullable=False)
     status     = db.Column(db.String(20), nullable=False, default='pendiente')
+
+def login_or_register_google_user(user_info):
+    """
+    Принимает словарь user_info от Google,
+    возвращает (user, error_message).
+    Если user=None, то error_message содержит текст ошибки.
+    """
+    email = user_info.get("email")
+    name = user_info.get("name") or email
+
+    if not email:
+        # Без email не можем связать с нашей таблицей User
+        return None, "No se pudo obtener el email desde Google."
+
+    # Ищем пользователя по username=email
+    user = User.query.filter_by(username=email).first()
+
+    # Если пользователя ещё нет – создаём как estudiante
+    if not user:
+        # Генерируем случайный пароль, чтобы поле password не было пустым
+        random_hash = bcrypt.generate_password_hash(os.urandom(16)).decode("utf-8")
+        user = User(
+            username=email,
+            password=random_hash,
+            role="estudiante",  # базовая роль
+        )
+        db.session.add(user)
+        db.session.commit()
+
+    return user, None
 
 def convertir_monto_desde_usd(amount: float, to: str):
     """
@@ -123,6 +150,12 @@ def redirect_by_role(role: str):
         return redirect(url_for('profesor_panel'))
     return redirect(url_for('estudiante_panel'))
 
+# Даём доступ к этим функциям через объект app,
+# чтобы blueprints могли их вызывать через current_app,
+# не импортируя модуль app вторым разом.
+app.login_or_register_google_user = login_or_register_google_user
+app.redirect_by_role = redirect_by_role
+
 def seed_cursos_si_hace_falta():
     """Создаёт 1–2 курса, если таблица пустая."""
     if Course.query.count() == 0:
@@ -134,14 +167,7 @@ def seed_cursos_si_hace_falta():
 
 @login_manager.user_loader
 def load_user(user_id):
-    g = session.get("user")
-    if g and str(g.get("id")) == str(user_id):
-        return GUser(
-            str(g["id"]),
-            g.get("name"),
-            g.get("email"),
-            g.get("role", "estudiante"),
-        )
+    """Flask-Login: получить пользователя по ID (всегда из БД)."""
     try:
         return User.query.get(int(user_id))
     except Exception:
@@ -249,6 +275,49 @@ def admin_panel():
     if current_user.role != 'admin':
         return render_template('403.html'), 403
     return render_template('admin.html')
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    # Только админ может видеть список пользователей
+    if current_user.role != 'admin':
+        return render_template('403.html'), 403
+
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
+
+
+@app.route('/admin/users/<int:user_id>/update_role', methods=['POST'])
+@login_required
+def admin_update_user_role(user_id):
+    if current_user.role != 'admin':
+        return render_template('403.html'), 403
+
+    new_role = request.form.get('role')
+
+    user = User.query.get_or_404(user_id)
+    user.role = new_role
+    db.session.commit()
+
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def admin_delete_user(user_id):
+    if current_user.role != 'admin':
+        return render_template('403.html'), 403
+
+    user = User.query.get_or_404(user_id)
+
+    # не дать админу удалить самого себя
+    if user.id == current_user.id:
+        return redirect(url_for('admin_users'))
+
+    db.session.delete(user)
+    db.session.commit()
+
+    return redirect(url_for('admin_users'))
 
 @app.route('/profesor')
 @login_required
