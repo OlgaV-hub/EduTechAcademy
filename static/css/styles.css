@@ -76,3 +76,16 @@ body { --bs-body-bg: #f7f9fc; }
     height: auto;
     margin: 0 auto;           
 }
+
+.course-img {
+    width: 100%;
+    height: 180px;        
+    object-fit: cover;    
+    border-top-left-radius: 14px;
+    border-top-right-radius: 14px;
+    display: block;
+}
+
+.card {
+    overflow: hidden;
+}

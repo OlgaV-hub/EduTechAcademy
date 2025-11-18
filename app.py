@@ -11,7 +11,9 @@ from flask_login import (
     login_required, current_user
 )
 
-from auth import auth_bp, oauth  # blueprint и OAuth из auth/
+from auth import auth_bp, oauth  
+
+from services.s3 import subir_imagen_curso, url_publica
 
 
 # =========================
@@ -51,6 +53,8 @@ db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
 
+app.jinja_env.globals["url_publica"] = url_publica
+
 
 # =========================
 # 2) MODELS
@@ -65,10 +69,11 @@ class User(UserMixin, db.Model):
 
 class Course(db.Model):
     id          = db.Column(db.Integer, primary_key=True)
-    nombre      = db.Column(db.String(120), nullable=False)        # título
+    nombre      = db.Column(db.String(120), nullable=False)        
     descripcion = db.Column(db.Text, nullable=True)
-    precio      = db.Column(db.Float, nullable=False, default=0.0) # price
-    teacher_id  = db.Column(db.Integer, nullable=True)             # opcional: id del profe
+    precio      = db.Column(db.Float, nullable=False, default=0.0) 
+    teacher_id  = db.Column(db.Integer, nullable=True)             
+    image_key   = db.Column(db.String(255), nullable=True)
 
 
 class Enrollment(db.Model):
@@ -481,7 +486,7 @@ def agregar_curso():
     if not nombre:
         return "Nombre es obligatorio", 400
 
-    # Duplicado (mismo profesor + mismo nombre)
+    # проверка дубликата (как было раньше)
     exist = Course.query.filter_by(
         nombre=nombre,
         teacher_id=current_user.id
@@ -490,11 +495,16 @@ def agregar_curso():
         flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
         return redirect(url_for('form_curso'))
 
+    # NUEVO: S3
+    file = request.files.get('imagen')
+    image_key = subir_imagen_curso(file)
+
     nuevo = Course(
         nombre=nombre,
         descripcion=descripcion,
         precio=precio,
-        teacher_id=current_user.id if current_user.role == 'profesor' else None
+        teacher_id=current_user.id if current_user.role == 'profesor' else None,
+        image_key=image_key
     )
     db.session.add(nuevo)
     db.session.commit()
@@ -521,7 +531,7 @@ def editar_curso(course_id):
         except ValueError:
             precio = 0
 
-        # Дубликат с тем же профессором (исключая текущий курс)
+        
         dup = Course.query.filter(
             Course.id != curso.id,
             Course.teacher_id == curso.teacher_id,
@@ -530,6 +540,13 @@ def editar_curso(course_id):
         if dup:
             flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
             return redirect(url_for('editar_curso', course_id=curso.id))
+
+        # NUEVO: S3 
+        file = request.files.get('imagen')
+        if file and file.filename:
+            new_key = subir_imagen_curso(file)
+            if new_key:
+                curso.image_key = new_key
 
         curso.nombre = nombre
         curso.descripcion = descripcion
