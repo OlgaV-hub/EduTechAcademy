@@ -25,6 +25,8 @@ import matplotlib
 matplotlib.use("Agg")  # рендер без X-сервера
 import matplotlib.pyplot as plt
 
+import textwrap
+
 
 # =========================
 # 1) CONFIG & INIT
@@ -366,55 +368,14 @@ def admin_inscripciones_png():
     if not _solo_admin_o_profesor():
         return "Acceso denegado", 403
 
-    # join Course + Enrollment
-    q = db.session.query(
-        Course.nombre.label("curso"),
-        db.func.count(Enrollment.id).label("inscripciones"),
-    ).join(Enrollment, Enrollment.course_id == Course.id)
-
-    # если это profesor — считаем только его курсы
-    if current_user.role == "profesor":
-        q = q.filter(Course.teacher_id == current_user.id)
-
-    q = q.group_by(Course.id)
-    rows = q.all()
-
-    if not rows:
-        fig, ax = plt.subplots()
-        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
-        ax.axis("off")
-        return _fig_to_png(fig)
-
-    df = pd.DataFrame(rows, columns=["curso", "inscripciones"])
-
-    fig, ax = plt.subplots(figsize=(6, 4))
-    colors = plt.cm.Pastel1(range(len(df)))
-    ax.bar(df["curso"], df["inscripciones"], color=colors)
-
-    ax.set_title("Inscripciones por curso")
-    ax.set_ylabel("Inscripciones")
-    ax.set_xlabel("Curso")
-    ax.grid(axis="y", linestyle="--", alpha=0.3)
-
-    fig.tight_layout()
-    return _fig_to_png(fig)
-
-
-# ---------- ADMIN / PROF: notas ----------
-
-@stats_bp.route("/admin/stats/notas.png")
-@login_required
-def admin_notas_png():
-    if not _solo_admin_o_profesor():
-        return "Acceso denegado", 403
-
+    # курс + количество inscripciones
     q = (
         db.session.query(
             Course.nombre.label("curso"),
-            Enrollment.nota.label("nota"),
+            db.func.count(Enrollment.id).label("cantidad"),
         )
-        .join(Course, Enrollment.course_id == Course.id)
-        .filter(Enrollment.nota.isnot(None))
+        .join(Enrollment, Enrollment.course_id == Course.id)
+        .group_by(Course.id, Course.nombre)
     )
 
     if current_user.role == "profesor":
@@ -427,13 +388,91 @@ def admin_notas_png():
         ax.axis("off")
         return _fig_to_png(fig)
 
-    df = pd.DataFrame(rows, columns=["curso", "nota"])
-    df_group = df.groupby("curso")["nota"].mean().reset_index()
+    df = pd.DataFrame(rows, columns=["curso", "cantidad"])
 
-    fig, ax = plt.subplots()
-    df_group.plot(kind="bar", x="curso", y="nota", legend=False, ax=ax)
+    # --- делаем короткие подписи с переносом строк ---
+    etiquetas = []
+    for nombre in df["curso"]:
+        # разобьём по словам на куски примерно по 18 символов
+        partes = textwrap.wrap(nombre, width=18)
+        etiquetas.append("\n".join(partes))
+    # -----------------------------------------------
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    # рисуем столбики по индексам (0,1,2,...) и отдельно устанавливаем подписи
+    posiciones = range(len(df))
+    colores = plt.cm.Pastel1(range(len(df)))
+    ax.bar(posiciones, df["cantidad"], color=colores)
+
+    ax.set_title("Inscripciones por curso")
+    ax.set_ylabel("Inscripciones")
+    ax.set_xlabel("Curso")
+
+    ax.set_xticks(list(posiciones))
+    ax.set_xticklabels(etiquetas, rotation=0, ha="center")  # ничего не накладывается
+
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+    fig.tight_layout()
+
+    return _fig_to_png(fig)
+
+
+# ---------- ADMIN / PROF: notas ----------
+
+@stats_bp.route("/admin/stats/notas.png")
+@login_required
+def admin_notas_png():
+    """Gráfico de nota promedio por curso (admin / profesor)."""
+    if not _solo_admin_o_profesor():
+        return "Acceso denegado", 403
+
+    # курс + promedio de nota (solo inscripciones con nota)
+    q = (
+        db.session.query(
+            Course.nombre.label("curso"),
+            db.func.avg(Enrollment.nota).label("nota_promedio"),
+        )
+        .join(Enrollment, Enrollment.course_id == Course.id)
+        .filter(Enrollment.nota != None)  # только где есть оценка
+        .group_by(Course.id, Course.nombre)
+    )
+
+    if current_user.role == "profesor":
+        q = q.filter(Course.teacher_id == current_user.id)
+
+    rows = q.all()
+
+    if not rows:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["curso", "nota"])
+
+    # --- подписи курсів с переносом строк ---
+    etiquetas = []
+    for nombre in df["curso"]:
+        partes = textwrap.wrap(nombre, width=18)
+        etiquetas.append("\n".join(partes))
+    # ----------------------------------------
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+
+    posiciones = range(len(df))
+    colores = plt.cm.Set2(range(len(df)))  # другая палитра, чем в inscripciones
+    ax.bar(posiciones, df["nota"], color=colores)
+
+    ax.set_title("Notas promedio por curso")
     ax.set_ylabel("Nota promedio")
     ax.set_xlabel("Curso")
+
+    ax.set_xticks(list(posiciones))
+    ax.set_xticklabels(etiquetas, rotation=0, ha="center")
+
+    ax.set_ylim(0, 10)  # шкала 0–10, как типичная nota
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
     fig.tight_layout()
 
     return _fig_to_png(fig)
@@ -453,10 +492,9 @@ def admin_actividad_png():
     )
 
     if current_user.role == "profesor":
-        # фильтруем по курсам данного преподавателя
         q = (
             q.join(Course, Enrollment.course_id == Course.id)
-            .filter(Course.teacher_id == current_user.id)
+             .filter(Course.teacher_id == current_user.id)
         )
 
     q = q.group_by(db.func.date(Enrollment.created_at)).order_by(
@@ -472,11 +510,15 @@ def admin_actividad_png():
 
     df = pd.DataFrame(rows, columns=["fecha", "cantidad"])
 
-    fig, ax = plt.subplots()
-    df.plot(kind="line", x="fecha", y="cantidad", marker="o", ax=ax, legend=False)
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(df["fecha"], df["cantidad"], marker="o")
+
+    ax.set_title("Actividad de inscripciones por fecha")
     ax.set_ylabel("Inscripciones")
     ax.set_xlabel("Fecha")
-    fig.autofmt_xdate()
+
+    ax.grid(True, linestyle="--", alpha=0.3)
+    fig.autofmt_xdate()        # подписи по датам читаемы
     fig.tight_layout()
 
     return _fig_to_png(fig)
@@ -508,6 +550,7 @@ def estudiante_notas_png():
     if current_user.role != "estudiante":
         return "Acceso denegado", 403
 
+    # Запрашиваем оценки по курсам для текущего студента
     q = (
         db.session.query(
             Course.nombre.label("curso"),
@@ -522,28 +565,38 @@ def estudiante_notas_png():
 
     rows = q.all()
     if not rows:
-            fig, ax = plt.subplots()
-            ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
-            ax.axis("off")
-            return _fig_to_png(fig)
+        fig, ax = plt.subplots(figsize=(5, 3))
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
 
+    import textwrap
+
+    # Формируем DataFrame
     df = pd.DataFrame(rows, columns=["curso", "nota"])
     df_group = df.groupby("curso")["nota"].mean().reset_index()
 
-    fig, ax = plt.subplots(figsize=(6, 4))
+    # Перенос длинных названий (18 символов на строку)
+    etiquetas = [textwrap.fill(nombre, width=18) for nombre in df_group["curso"]]
 
-    # красивые разные цвета из палитры
+    # Создаем график
+    fig, ax = plt.subplots(figsize=(6, 4))
     colors = plt.cm.Set2(range(len(df_group)))
-    ax.bar(df_group["curso"], df_group["nota"], color=colors)
+
+    ax.bar(etiquetas, df_group["nota"], color=colors)
 
     ax.set_title("Notas por curso")
     ax.set_ylabel("Nota promedio")
     ax.set_xlabel("Curso")
+
+    # Горизонтальные подписи — оставляем rotation=0
+    ax.tick_params(axis="x", labelrotation=0)
+
+    # Легкая сетка
     ax.grid(axis="y", linestyle="--", alpha=0.3)
 
     fig.tight_layout()
     return _fig_to_png(fig)
-
 
 # ---------- ESTUDIANTE: estado entregas (используем status инскрипций) ----------
 
@@ -571,12 +624,18 @@ def estudiante_estado_entregas_png():
 
     df = pd.DataFrame(rows, columns=["estado", "cantidad"])
 
-    fig, ax = plt.subplots()
-    df.plot(kind="bar", x="estado", y="cantidad", legend=False, ax=ax)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    colors = plt.cm.Pastel2(range(len(df)))
+    ax.bar(df["estado"], df["cantidad"], color=colors)
+
+    ax.set_title("Estado de entregas")
     ax.set_ylabel("Cantidad")
     ax.set_xlabel("Estado")
-    fig.tight_layout()
 
+    ax.set_xticklabels(df["estado"], rotation=0)
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+    fig.tight_layout()
     return _fig_to_png(fig)
 
 
