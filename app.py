@@ -3,7 +3,7 @@ import requests
 
 from dotenv import load_dotenv
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, Blueprint
 from flask_sqlalchemy import SQLAlchemy
 from flask_bcrypt import Bcrypt
 from flask_login import (
@@ -14,6 +14,16 @@ from flask_login import (
 from auth import auth_bp, oauth  
 
 from services.s3 import subir_imagen_curso, url_publica
+
+from datetime import datetime, timedelta
+
+import io
+
+import pandas as pd
+
+import matplotlib
+matplotlib.use("Agg")  # рендер без X-сервера
+import matplotlib.pyplot as plt
 
 
 # =========================
@@ -81,6 +91,12 @@ class Enrollment(db.Model):
     user_id   = db.Column(db.Integer, nullable=False)
     course_id = db.Column(db.Integer, nullable=False)
     status    = db.Column(db.String(20), nullable=False, default='pendiente')
+    
+    # когда студент записался на курс
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    
+    # итоговая оценка по курсу (0–10, например)
+    nota = db.Column(db.Float, nullable=True)
 
 
 # =========================
@@ -224,11 +240,83 @@ def seed_usuarios_si_hace_falta():
 
     ensure('admin', 'admin123', 'admin')
     ensure('prof',  'prof123',  'profesor')
+    ensure('alumno_demo', 'demo123', 'estudiante')
 
     if created:
         print('Seed usuarios -> creados:', created)
     else:
         print('Seed usuarios -> ya existen')
+    
+
+def seed_stats_demo():
+    """Создаёт демо-инскрипции и оценки для графиков, если таблица пустая."""
+    if Enrollment.query.count() > 0:
+        print("Seed stats -> ya hay inscripciones, no se crean datos demo")
+        return
+
+    # 1) Находим/создаём демо-студента
+    est = User.query.filter_by(username="alumno_demo").first()
+    if not est:
+        pw_hash = bcrypt.generate_password_hash("demo123").decode("utf-8")
+        est = User(username="alumno_demo", password=pw_hash, role="estudiante")
+        db.session.add(est)
+        db.session.commit()
+        print("Seed stats -> creado usuario alumno_demo / demo123")
+
+    # 2) Курсы (из seed_cursos)
+    c1 = Course.query.filter_by(nombre="Programación 1").first()
+    c2 = Course.query.filter_by(nombre="Base de Datos").first()
+
+    # если нет — на всякий случай создадим
+    if not c1:
+        c1 = Course(nombre="Programación 1", descripcion="Curso base", precio=100.0)
+        db.session.add(c1)
+    if not c2:
+        c2 = Course(nombre="Base de Datos", descripcion="Modelado y SQL", precio=120.0)
+        db.session.add(c2)
+    db.session.commit()
+
+    # 3) Даты для активности
+    now = datetime.utcnow()
+
+    demo_ins = [
+        # Curso 1: entregado, высокая оценка
+        Enrollment(
+            user_id=est.id,
+            course_id=c1.id,
+            status="entregado",
+            nota=9.0,
+            created_at=now - timedelta(days=10),
+        ),
+        # Curso 2: entregado, с оценкой 7 (чтобы появился на графике notas)
+        Enrollment(
+            user_id=est.id,
+            course_id=c2.id,
+            status="entregado",
+            nota=7.0,
+            created_at=now - timedelta(days=7),
+        ),
+        # Curso 1: ещё одна entrega, чтобы был "пик" по датам
+        Enrollment(
+            user_id=est.id,
+            course_id=c1.id,
+            status="entregado",
+            nota=8.0,
+            created_at=now - timedelta(days=4),
+        ),
+        # Дополнительная запись "не сдано" (pendiente, без оценки)
+        Enrollment(
+            user_id=est.id,
+            course_id=c2.id,
+            status="pendiente",
+            nota=None,
+            created_at=now - timedelta(days=1),
+        ),
+    ]
+
+    db.session.add_all(demo_ins)
+    db.session.commit()
+    print("Seed stats -> creadas inscripciones demo")
 
 
 # --- INIT DB EN RENDER / PROD (Flask 3.x, sin before_first_request) ---
@@ -250,6 +338,260 @@ def _init_db_and_seed():
 # вызываем инициализацию на старте процесса (импорт модуля под gunicorn)
 _init_db_and_seed()
 
+# =========================
+# 3b) STATS (Pandas + Matplotlib)
+# =========================
+
+stats_bp = Blueprint("stats", __name__)
+
+
+def _fig_to_png(fig):
+    """Сохранить фигуру в PNG и вернуть send_file."""
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    plt.close(fig)
+    return send_file(buf, mimetype="image/png")
+
+
+def _solo_admin_o_profesor():
+    return current_user.is_authenticated and current_user.role in ("admin", "profesor")
+
+
+# ---------- ADMIN / PROF: inscripciones ----------
+
+@stats_bp.route("/admin/stats/inscripciones.png")
+@login_required
+def admin_inscripciones_png():
+    if not _solo_admin_o_profesor():
+        return "Acceso denegado", 403
+
+    # join Course + Enrollment
+    q = db.session.query(
+        Course.nombre.label("curso"),
+        db.func.count(Enrollment.id).label("inscripciones"),
+    ).join(Enrollment, Enrollment.course_id == Course.id)
+
+    # если это profesor — считаем только его курсы
+    if current_user.role == "profesor":
+        q = q.filter(Course.teacher_id == current_user.id)
+
+    q = q.group_by(Course.id)
+    rows = q.all()
+
+    if not rows:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["curso", "inscripciones"])
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+    colors = plt.cm.Pastel1(range(len(df)))
+    ax.bar(df["curso"], df["inscripciones"], color=colors)
+
+    ax.set_title("Inscripciones por curso")
+    ax.set_ylabel("Inscripciones")
+    ax.set_xlabel("Curso")
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+    fig.tight_layout()
+    return _fig_to_png(fig)
+
+
+# ---------- ADMIN / PROF: notas ----------
+
+@stats_bp.route("/admin/stats/notas.png")
+@login_required
+def admin_notas_png():
+    if not _solo_admin_o_profesor():
+        return "Acceso denegado", 403
+
+    q = (
+        db.session.query(
+            Course.nombre.label("curso"),
+            Enrollment.nota.label("nota"),
+        )
+        .join(Course, Enrollment.course_id == Course.id)
+        .filter(Enrollment.nota.isnot(None))
+    )
+
+    if current_user.role == "profesor":
+        q = q.filter(Course.teacher_id == current_user.id)
+
+    rows = q.all()
+    if not rows:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["curso", "nota"])
+    df_group = df.groupby("curso")["nota"].mean().reset_index()
+
+    fig, ax = plt.subplots()
+    df_group.plot(kind="bar", x="curso", y="nota", legend=False, ax=ax)
+    ax.set_ylabel("Nota promedio")
+    ax.set_xlabel("Curso")
+    fig.tight_layout()
+
+    return _fig_to_png(fig)
+
+
+# ---------- ADMIN / PROF: actividad (inscripciones por fecha) ----------
+
+@stats_bp.route("/admin/stats/actividad.png")
+@login_required
+def admin_actividad_png():
+    if not _solo_admin_o_profesor():
+        return "Acceso denegado", 403
+
+    q = db.session.query(
+        db.func.date(Enrollment.created_at).label("fecha"),
+        db.func.count(Enrollment.id).label("cantidad"),
+    )
+
+    if current_user.role == "profesor":
+        # фильтруем по курсам данного преподавателя
+        q = (
+            q.join(Course, Enrollment.course_id == Course.id)
+            .filter(Course.teacher_id == current_user.id)
+        )
+
+    q = q.group_by(db.func.date(Enrollment.created_at)).order_by(
+        db.func.date(Enrollment.created_at)
+    )
+    rows = q.all()
+
+    if not rows:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["fecha", "cantidad"])
+
+    fig, ax = plt.subplots()
+    df.plot(kind="line", x="fecha", y="cantidad", marker="o", ax=ax, legend=False)
+    ax.set_ylabel("Inscripciones")
+    ax.set_xlabel("Fecha")
+    fig.autofmt_xdate()
+    fig.tight_layout()
+
+    return _fig_to_png(fig)
+
+
+# ---------- ADMIN / PROF: страница с тремя графиками ----------
+
+@stats_bp.route("/admin/stats")
+@login_required
+def admin_stats_page():
+    if not _solo_admin_o_profesor():
+        return "Acceso denegado", 403
+    # один и тот же шаблон для admin и profesor
+    return render_template("admin_stats.html", active="stats")
+
+
+@stats_bp.route("/profesor/stats")
+@login_required
+def profesor_stats_page():
+    # просто алиас на ту же страницу
+    return admin_stats_page()
+
+
+# ---------- ESTUDIANTE: notas ----------
+
+@stats_bp.route("/estudiante/stats/notas.png")
+@login_required
+def estudiante_notas_png():
+    if current_user.role != "estudiante":
+        return "Acceso denegado", 403
+
+    q = (
+        db.session.query(
+            Course.nombre.label("curso"),
+            Enrollment.nota.label("nota"),
+        )
+        .join(Course, Enrollment.course_id == Course.id)
+        .filter(
+            Enrollment.user_id == current_user.id,
+            Enrollment.nota.isnot(None),
+        )
+    )
+
+    rows = q.all()
+    if not rows:
+            fig, ax = plt.subplots()
+            ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+            ax.axis("off")
+            return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["curso", "nota"])
+    df_group = df.groupby("curso")["nota"].mean().reset_index()
+
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    # красивые разные цвета из палитры
+    colors = plt.cm.Set2(range(len(df_group)))
+    ax.bar(df_group["curso"], df_group["nota"], color=colors)
+
+    ax.set_title("Notas por curso")
+    ax.set_ylabel("Nota promedio")
+    ax.set_xlabel("Curso")
+    ax.grid(axis="y", linestyle="--", alpha=0.3)
+
+    fig.tight_layout()
+    return _fig_to_png(fig)
+
+
+# ---------- ESTUDIANTE: estado entregas (используем status инскрипций) ----------
+
+@stats_bp.route("/estudiante/stats/estado_entregas.png")
+@login_required
+def estudiante_estado_entregas_png():
+    if current_user.role != "estudiante":
+        return "Acceso denegado", 403
+
+    q = (
+        db.session.query(
+            Enrollment.status.label("estado"),
+            db.func.count(Enrollment.id).label("cantidad"),
+        )
+        .filter(Enrollment.user_id == current_user.id)
+        .group_by(Enrollment.status)
+    )
+
+    rows = q.all()
+    if not rows:
+        fig, ax = plt.subplots()
+        ax.text(0.5, 0.5, "Sin datos", ha="center", va="center")
+        ax.axis("off")
+        return _fig_to_png(fig)
+
+    df = pd.DataFrame(rows, columns=["estado", "cantidad"])
+
+    fig, ax = plt.subplots()
+    df.plot(kind="bar", x="estado", y="cantidad", legend=False, ax=ax)
+    ax.set_ylabel("Cantidad")
+    ax.set_xlabel("Estado")
+    fig.tight_layout()
+
+    return _fig_to_png(fig)
+
+
+# ---------- ESTUDIANTE: страница «Mi estadística» ----------
+
+@stats_bp.route("/estudiante/stats")
+@login_required
+def estudiante_stats_page():
+    if current_user.role != "estudiante":
+        return "Acceso denegado", 403
+    return render_template("estudiante_stats.html", active="mi_stats")
+
+
+# Регистрация blueprint-а
+app.register_blueprint(stats_bp)
 
 # =========================
 # 4) ROUTES (Views)
@@ -399,8 +741,10 @@ def profesor_panel():
 def estudiante_panel():
     if current_user.role != 'estudiante':
         return render_template('403.html'), 403
-    # вкладка "Inicio" активна по умолчанию
-    return render_template('estudiante.html', active='resumen', cursos=[])
+
+    msg = request.args.get('msg')
+    
+    return render_template('estudiante.html', active='inicio', cursos=[], msg=msg)
 
 
 # --- Auth utils ---
@@ -421,8 +765,20 @@ def protected():
 # --- Cursos y FX ---
 
 @app.route('/cursos')
+@login_required
 def listar_cursos():
-    cursos = Course.query.all()
+    # Admin видит все курсы
+    if current_user.role == 'admin':
+        cursos = Course.query.all()
+
+    # Profesor видит только свои курсы
+    elif current_user.role == 'profesor':
+        cursos = Course.query.filter_by(teacher_id=current_user.id).all()
+
+    # Estudiante (и прочие) видят все доступные курсы для inscripción
+    else:
+        cursos = Course.query.all()
+
     return render_template('cursos.html', cursos=cursos)
 
 
@@ -461,6 +817,74 @@ def convertir_precio(course_id):
         amount=amount
     )
 
+@app.route('/profesor/curso/<int:course_id>/inscripciones', methods=['GET', 'POST'])
+@login_required
+def gestionar_inscripciones_curso(course_id):
+    # Доступ только профу и админу
+    if current_user.role not in ('profesor', 'admin'):
+        return render_template('403.html'), 403
+
+    curso = Course.query.get_or_404(course_id)
+
+    # Профессор может видеть только свои курсы
+    if current_user.role == 'profesor' and curso.teacher_id != current_user.id:
+        return render_template('403.html'), 403
+
+    # --- Обработка обновления одной инскрипции ---
+    if request.method == 'POST':
+        enroll_id_str = request.form.get('enrollment_id', '').strip()
+        status = request.form.get('status', '').strip()
+        nota_str = request.form.get('nota', '').strip()
+
+        # допустимые статусы
+        allowed_status = ['pendiente', 'entregado', 'vencido']
+
+        try:
+            enroll_id = int(enroll_id_str)
+        except ValueError:
+            flash('ID de inscripción inválido.', 'warning')
+            return redirect(url_for('gestionar_inscripciones_curso',
+                                    course_id=course_id))
+
+        insc = Enrollment.query.get_or_404(enroll_id)
+
+        # доп. проверка: эта inscripción должна относиться к текущему курсу
+        if insc.course_id != curso.id:
+            flash('La inscripción no pertenece a este curso.', 'warning')
+            return redirect(url_for('gestionar_inscripciones_curso',
+                                    course_id=course_id))
+
+        # статус
+        if status in allowed_status:
+            insc.status = status
+
+        # nota (может быть пустой)
+        if nota_str == '':
+            insc.nota = None
+        else:
+            try:
+                insc.nota = float(nota_str)
+            except ValueError:
+                flash('La nota debe ser numérica.', 'warning')
+
+        db.session.commit()
+        flash('Inscripción actualizada.', 'success')
+        return redirect(url_for('gestionar_inscripciones_curso',
+                                course_id=course_id))
+
+    # --- GET: показать список студентов этого курса ---
+    inscripciones = (
+        db.session.query(Enrollment, User)
+        .join(User, User.id == Enrollment.user_id)
+        .filter(Enrollment.course_id == course_id)
+        .all()
+    )
+
+    return render_template(
+        'profesor_inscripciones.html',
+        curso=curso,
+        inscripciones=inscripciones
+    )
 
 @app.route('/form_curso')
 @login_required
@@ -611,7 +1035,24 @@ def mis_cursos():
     cursos_ids = [i.course_id for i in inscripciones]
     cursos = Course.query.filter(Course.id.in_(cursos_ids)).all() if cursos_ids else []
 
-    return render_template('estudiante.html', active='mis', cursos=cursos)
+    msg = request.args.get('msg')
+    return render_template('estudiante.html', cursos=cursos, msg=msg, active='mis_cursos')
+
+
+@app.route('/estudiante/cursos')
+@login_required
+def estudiante_todos_cursos():
+    if current_user.role != 'estudiante':
+        return render_template('403.html'), 403
+
+    cursos = Course.query.all()
+    msg = request.args.get('msg')
+    return render_template(
+        'estudiante.html',
+        cursos=cursos,
+        msg=msg,
+        active='todos_cursos'
+    )
 
 
 # --- Foro ---
@@ -638,4 +1079,5 @@ if __name__ == '__main__':
         db.create_all()
         seed_cursos_si_hace_falta()
         seed_usuarios_si_hace_falta()
+        seed_stats_demo()
     app.run(debug=True)

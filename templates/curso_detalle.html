@@ -4,14 +4,25 @@
   <div class="col-12 col-lg-8">
     <div class="card shadow-sm">
       
-      {% if curso.image_key %}
+      <!-- {% if curso.image_key %}
+      <div class="course-image-wrapper">
         <img src="{{ url_publica(curso.image_key) }}"
              alt="Imagen del curso {{ curso.nombre }}"
-             class="card-img-top"
-             style="max-height: 320px; object-fit: cover;">
-      {% endif %}
+             class="course-image"
 
-      <div class="card-body">
+      
+      {% endif %} -->
+
+      <div class="card shadow-sm">
+        {% if curso.image_key %}
+          <div class="course-thumb detail-thumb">
+            <img src="{{ url_publica(curso.image_key) }}"
+                alt="Imagen del curso {{ curso.nombre }}"
+                class="course-thumb-img">
+          </div>
+        {% endif %}
+
+        <div class="card-body">
         <h3 class="card-title">{{ curso.nombre }}</h3>
         <p class="text-muted">{{ curso.descripcion or '—' }}</p>
 

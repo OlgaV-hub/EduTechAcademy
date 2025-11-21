@@ -2,7 +2,7 @@
 {% block content %}
 <h2 class="mb-3">Listado de cursos</h2>
 
-<div class="row row-cols-1 row-cols-md-2 g-3">
+<div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
   {% for c in cursos %}
     <div class="col">
       <div class="card course-card h-100 shadow-sm">
@@ -10,8 +10,8 @@
         
         {% if c.image_key %}
           <img src="{{ url_publica(c.image_key) }}"
-            alt="Imagen del curso {{ c.nombre }}"
-            class="course-img">
+              alt="Imagen del curso {{ c.nombre }}"
+              class="course-image">
         {% endif %}
 
         <div class="card-body">
@@ -20,20 +20,33 @@
 
           <div class="d-flex justify-content-between align-items-center">
             <span class="fw-semibold">USD {{ '%.2f'|format(c.precio or 0) }}</span>
-            <a class="btn btn-primary btn-sm" href="{{ url_for('detalle_curso', course_id=c.id) }}">Ver detalle</a>
+            <a class="btn btn-primary btn-sm"
+              href="{{ url_for('detalle_curso', course_id=c.id) }}">
+              Ver detalle
+            </a>
 
             {% if current_user.is_authenticated and (
                 current_user.role == 'admin' or
                 (current_user.role == 'profesor' and c.teacher_id == current_user.id)
             ) %}
+
+              <a class="btn btn-outline-primary btn-sm ms-2"
+                href="{{ url_for('gestionar_inscripciones_curso', course_id=c.id) }}">
+                Ver inscripciones
+              </a>
+
               <a class="btn btn-outline-secondary btn-sm ms-2"
-                 href="{{ url_for('editar_curso', course_id=c.id) }}">Editar</a>
+                href="{{ url_for('editar_curso', course_id=c.id) }}">
+                Editar
+              </a>
 
               <form method="post"
                     action="{{ url_for('eliminar_curso', course_id=c.id) }}"
                     style="display:inline-block"
                     onsubmit="return confirm('¿Eliminar el curso?');">
-                <button class="btn btn-outline-danger btn-sm ms-1" type="submit">Eliminar</button>
+                <button class="btn btn-outline-danger btn-sm ms-1" type="submit">
+                  Eliminar
+                </button>
               </form>
             {% endif %}
           </div>

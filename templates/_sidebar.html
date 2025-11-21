@@ -1,36 +1,52 @@
-<div class="list-group"> 
+<div class="list-group">
 
+    {# ---------------- ADMIN ---------------- #}
     {% if current_user.role == 'admin' %}
-      <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}" 
-         href="{{ url_for('admin_panel') }}">Resumen</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='cursos' %}active{% endif %}" 
-         href="{{ url_for('listar_cursos') }}">Cursos</a>
+        <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}"
+           href="{{ url_for('admin_panel') }}">Resumen</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='agregar_curso' %}active{% endif %}" 
-         href="{{ url_for('form_curso') }}">Agregar curso</a>
+        <a class="list-group-item list-group-item-action {% if active=='cursos' %}active{% endif %}"
+           href="{{ url_for('listar_cursos') }}">Cursos</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='usuarios' %}active{% endif %}" 
-         href="{{ url_for('admin_users') }}">Gestionar usuarios</a>
+        <a class="list-group-item list-group-item-action {% if active=='agregar_curso' %}active{% endif %}"
+           href="{{ url_for('form_curso') }}">Agregar curso</a>
 
+        <a class="list-group-item list-group-item-action {% if active=='usuarios' %}active{% endif %}"
+           href="{{ url_for('admin_users') }}">Gestionar usuarios</a>
+
+        <a class="list-group-item list-group-item-action {% if active=='stats' %}active{% endif %}"
+           href="{{ url_for('stats.admin_stats_page') }}">Estadísticas</a>
+
+    {# ---------------- PROFESOR ---------------- #}
     {% elif current_user.role == 'profesor' %}
-      <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}" 
-         href="{{ url_for('profesor_panel') }}">Resumen</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='mis_cursos' %}active{% endif %}" 
-         href="{{ url_for('listar_cursos') }}">Mis cursos</a>
+        <a class="list-group-item list-group-item-action {% if active=='resumen' %}active{% endif %}"
+           href="{{ url_for('profesor_panel') }}">Resumen</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='agregar_curso' %}active{% endif %}" 
-         href="{{ url_for('form_curso') }}">Agregar curso</a>
+        <a class="list-group-item list-group-item-action {% if active=='mis_cursos' %}active{% endif %}"
+           href="{{ url_for('listar_cursos') }}">Mis cursos</a>
 
+        <a class="list-group-item list-group-item-action {% if active=='agregar_curso' %}active{% endif %}"
+           href="{{ url_for('form_curso') }}">Agregar curso</a>
+
+        <a class="list-group-item list-group-item-action {% if active=='stats' %}active{% endif %}"
+           href="{{ url_for('stats.profesor_stats_page') }}">Estadísticas</a>
+
+    {# ---------------- ESTUDIANTE ---------------- #}
     {% else %}
-      <a class="list-group-item list-group-item-action {% if active=='inicio' %}active{% endif %}" 
-         href="{{ url_for('estudiante_panel') }}">Inicio</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='mis_cursos' %}active{% endif %}" 
-         href="{{ url_for('mis_cursos') }}">Mis cursos</a>
+        <a class="list-group-item list-group-item-action {% if active=='inicio' %}active{% endif %}"
+           href="{{ url_for('estudiante_panel') }}">Inicio</a>
 
-      <a class="list-group-item list-group-item-action {% if active=='todos_cursos' %}active{% endif %}" 
-         href="{{ url_for('listar_cursos') }}">Todos los cursos</a>
+        <a class="list-group-item list-group-item-action {% if active=='mis_cursos' %}active{% endif %}"
+           href="{{ url_for('mis_cursos') }}">Mis cursos</a>
+
+        <a class="list-group-item list-group-item-action {% if active=='todos_cursos' %}active{% endif %}"
+            href="{{ url_for('estudiante_todos_cursos') }}">Todos los cursos</a>
+
+        <a class="list-group-item list-group-item-action {% if active=='mi_stats' %}active{% endif %}"
+           href="{{ url_for('stats.estudiante_stats_page') }}">Mi estadística</a>
+
     {% endif %}
 </div>

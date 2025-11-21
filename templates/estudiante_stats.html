@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-12 col-md-3">
+    {% set active='mi_stats' %}
+    {% include "_sidebar.html" %}
+  </div>
+
+  <div class="col-12 col-md-9">
+    <h2 class="mb-3">Mi estadística</h2>
+
+    <div class="mb-4">
+      <h5>Notas por curso</h5>
+      <img class="img-fluid border rounded"
+           src="{{ url_for('stats.estudiante_notas_png') }}"
+           alt="Notas por curso">
+    </div>
+
+    <div class="mb-4">
+      <h5>Estado de entregas</h5>
+      <img class="img-fluid border rounded"
+           src="{{ url_for('stats.estudiante_estado_entregas_png') }}"
+           alt="Estado de entregas">
+    </div>
+  </div>
+</div>
+{% endblock %}
