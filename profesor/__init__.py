@@ -1,0 +1,1 @@
+from .routes import profesor_bp

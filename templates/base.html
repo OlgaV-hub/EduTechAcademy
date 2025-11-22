@@ -20,25 +20,25 @@
     </button>
     <div id="topNav" class="collapse navbar-collapse">
       <ul class="navbar-nav me-auto">
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('listar_cursos') }}">Cursos</a></li>
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('ver_foro') }}">Foro</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('courses.listar_cursos') }}">Cursos</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('foro.ver_foro') }}">Foro</a></li>
         {% if current_user.is_authenticated and current_user.role in ('profesor','admin') %}
-        <li class="nav-item"><a class="nav-link" href="{{ url_for('form_curso') }}">Agregar curso</a></li>
+        <li class="nav-item"><a class="nav-link" href="{{ url_for('courses.form_curso') }}">Agregar curso</a></li>
         {% endif %}
       </ul>
       <ul class="navbar-nav">
         {% if current_user.is_authenticated %}
           <li class="nav-item">
             {% if current_user.role == 'admin' %}
-              <a class="nav-link" href="{{ url_for('admin_panel') }}">Admin</a>
+              <a class="nav-link" href="{{ url_for('admin.admin_panel') }}">Admin</a>
             {% elif current_user.role == 'profesor' %}
-              <a class="nav-link" href="{{ url_for('profesor_panel') }}">Profesor</a>
+              <a class="nav-link" href="{{ url_for('profesor.profesor_panel') }}">Profesor</a>
             {% else %}
-              <a class="nav-link" href="{{ url_for('estudiante_panel') }}">Estudiante</a>
+              <a class="nav-link" href="{{ url_for('estudiante.estudiante_panel') }}">Estudiante</a>
             {% endif %}
           </li>
           {% if current_user.is_authenticated and current_user.role == 'estudiante' %}
-            <li class="nav-item"><a class="nav-link" href="{{ url_for('mis_cursos') }}">Mis cursos</a></li>
+            <li class="nav-item"><a class="nav-link" href="{{ url_for('estudiante.mis_cursos') }}">Mis cursos</a></li>
           {% endif %}
           
           <li class="nav-item"><a class="nav-link" href="{{ url_for('logout') }}">Salir</a></li>

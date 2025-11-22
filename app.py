@@ -93,7 +93,7 @@ class Enrollment(db.Model):
 app.db = db
 app.Course = Course
 app.Enrollment = Enrollment
-
+app.User = User
 
 # =========================
 # 3) SERVICES & HELPERS
@@ -162,7 +162,7 @@ def convertir_monto_desde_usd(amount: float, to: str):
                         if rate:
                             return float(amount) * float(rate), None
 
-            # 3) frankfurter.app (стабильный, но НЕТ ARS; хорош для EUR/USD)
+            # 3) frankfurter.app (стабильный, но НЕТ ARS; для EUR/USD)
             elif 'frankfurter.app' in base:
                 r = requests.get(
                     f"{base}/latest",
@@ -181,13 +181,15 @@ def convertir_monto_desde_usd(amount: float, to: str):
 
     return None, "Todas las APIs fallaron o no están disponibles ahora."
 
+app.convertir_monto_desde_usd = convertir_monto_desde_usd
+
 
 def redirect_by_role(role: str):
     if role == 'admin':
-        return redirect(url_for('admin_panel'))
+        return redirect(url_for('admin.admin_panel'))
     elif role == 'profesor':
-        return redirect(url_for('profesor_panel'))
-    return redirect(url_for('estudiante_panel'))
+        return redirect(url_for('profesor.profesor_panel'))
+    return redirect(url_for('estudiante.estudiante_panel'))
 
 
 # Даём доступ к этим функциям через объект app,
@@ -218,6 +220,7 @@ def load_user(user_id):
 
 # Простейший форум в памяти
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
+app.temas_foro = temas_foro
 
 
 def seed_usuarios_si_hace_falta():
@@ -339,6 +342,18 @@ _init_db_and_seed()
 from stats import stats_bp
 app.register_blueprint(stats_bp)
 
+from courses import courses_bp
+from profesor import profesor_bp
+from admin import admin_bp
+from foro import foro_bp
+from estudiante import estudiante_bp
+
+app.register_blueprint(courses_bp)
+app.register_blueprint(profesor_bp)
+app.register_blueprint(admin_bp)
+app.register_blueprint(foro_bp)
+app.register_blueprint(estudiante_bp)
+
 # =========================
 # 4) ROUTES (Views)
 # =========================
@@ -372,13 +387,13 @@ def login():
         login_user(user)
         flash('Sesión iniciada.', 'success')
 
-        # Имена эндпоинтов — как в твоём коде
+        # Имена эндпоинтов 
         if user.role == 'admin':
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('admin.admin_panel'))
         elif user.role == 'profesor':
-            return redirect(url_for('profesor_panel'))
+            return redirect(url_for('profesor.profesor_panel'))
         else:
-            return redirect(url_for('estudiante_panel'))
+            return redirect(url_for('estudiante.estudiante_panel'))
 
     return render_template('login.html')
 
@@ -389,7 +404,7 @@ def register():
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
 
-        # жёстко назначаем роль студенту
+        # назначаем роль студенту
         role = 'estudiante'
 
         if not username or not password:
@@ -410,87 +425,13 @@ def register():
         login_user(user)
 
         if user.role == 'admin':
-            return redirect(url_for('admin_panel'))
+            return redirect(url_for('admin.admin_panel'))
         elif user.role == 'profesor':
-            return redirect(url_for('profesor_panel'))
+            return redirect(url_for('profesor.profesor_panel'))
         else:
-            return redirect(url_for('estudiante_panel'))
+            return redirect(url_for('esudiante.estudiante_panel'))
 
     return render_template('register.html')
-
-
-# --- Панель администратора + CRUD пользователей ---
-
-@app.route('/admin')
-@login_required
-def admin_panel():
-    if current_user.role != 'admin':
-        return render_template('403.html'), 403
-    return render_template('admin.html')
-
-
-@app.route('/admin/users')
-@login_required
-def admin_users():
-    # Только админ может видеть список пользователей
-    if current_user.role != 'admin':
-        return render_template('403.html'), 403
-
-    users = User.query.all()
-    return render_template('admin_users.html', users=users)
-
-
-@app.route('/admin/users/<int:user_id>/update_role', methods=['POST'])
-@login_required
-def admin_update_user_role(user_id):
-    if current_user.role != 'admin':
-        return render_template('403.html'), 403
-
-    new_role = request.form.get('role')
-    user = User.query.get_or_404(user_id)
-    user.role = new_role
-    db.session.commit()
-
-    return redirect(url_for('admin_users'))
-
-
-@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
-@login_required
-def admin_delete_user(user_id):
-    if current_user.role != 'admin':
-        return render_template('403.html'), 403
-
-    user = User.query.get_or_404(user_id)
-
-    # не дать админу удалить самого себя
-    if user.id == current_user.id:
-        return redirect(url_for('admin_users'))
-
-    db.session.delete(user)
-    db.session.commit()
-
-    return redirect(url_for('admin_users'))
-
-
-# --- Панели profesor / estudiante ---
-
-@app.route('/profesor')
-@login_required
-def profesor_panel():
-    if current_user.role not in ('profesor', 'admin'):
-        return render_template('403.html'), 403
-    return render_template('profesor.html')
-
-
-@app.route('/estudiante')
-@login_required
-def estudiante_panel():
-    if current_user.role != 'estudiante':
-        return render_template('403.html'), 403
-
-    msg = request.args.get('msg')
-    
-    return render_template('estudiante.html', active='inicio', cursos=[], msg=msg)
 
 
 # --- Auth utils ---
@@ -506,307 +447,6 @@ def logout():
 @login_required
 def protected():
     return f"Hola {current_user.username} (rol: {current_user.role})"
-
-
-# --- Cursos y FX ---
-
-@app.route('/cursos')
-@login_required
-def listar_cursos():
-    # Admin видит все курсы
-    if current_user.role == 'admin':
-        cursos = Course.query.all()
-
-    # Profesor видит только свои курсы
-    elif current_user.role == 'profesor':
-        cursos = Course.query.filter_by(teacher_id=current_user.id).all()
-
-    # Estudiante (и прочие) видят все доступные курсы для inscripción
-    else:
-        cursos = Course.query.all()
-
-    return render_template('cursos.html', cursos=cursos)
-
-
-@app.route('/cursos/<int:course_id>')
-def detalle_curso(course_id):
-    curso = Course.query.get_or_404(course_id)
-    return render_template(
-        'curso_detalle.html',
-        curso=curso,
-        converted=None,
-        error=None,
-        moneda=None,
-        amount=None
-    )
-
-
-@app.route('/cursos/<int:course_id>/convert', methods=['POST'])
-def convertir_precio(course_id):
-    curso = Course.query.get_or_404(course_id)
-    amount_str = request.form.get('amount', '').strip()
-    moneda = request.form.get('to', 'ARS').upper()
-
-    try:
-        amount = float(amount_str or 0)
-    except ValueError:
-        amount = 0.0
-
-    converted, error = convertir_monto_desde_usd(amount, moneda)
-
-    return render_template(
-        'curso_detalle.html',
-        curso=curso,
-        converted=converted,
-        error=error,
-        moneda=moneda,
-        amount=amount
-    )
-
-@app.route('/profesor/curso/<int:course_id>/inscripciones', methods=['GET', 'POST'])
-@login_required
-def gestionar_inscripciones_curso(course_id):
-    # Доступ только профу и админу
-    if current_user.role not in ('profesor', 'admin'):
-        return render_template('403.html'), 403
-
-    curso = Course.query.get_or_404(course_id)
-
-    # Профессор может видеть только свои курсы
-    if current_user.role == 'profesor' and curso.teacher_id != current_user.id:
-        return render_template('403.html'), 403
-
-    # --- Обработка обновления одной инскрипции ---
-    if request.method == 'POST':
-        enroll_id_str = request.form.get('enrollment_id', '').strip()
-        status = request.form.get('status', '').strip()
-        nota_str = request.form.get('nota', '').strip()
-
-        # допустимые статусы
-        allowed_status = ['pendiente', 'entregado', 'vencido']
-
-        try:
-            enroll_id = int(enroll_id_str)
-        except ValueError:
-            flash('ID de inscripción inválido.', 'warning')
-            return redirect(url_for('gestionar_inscripciones_curso',
-                                    course_id=course_id))
-
-        insc = Enrollment.query.get_or_404(enroll_id)
-
-        # доп. проверка: эта inscripción должна относиться к текущему курсу
-        if insc.course_id != curso.id:
-            flash('La inscripción no pertenece a este curso.', 'warning')
-            return redirect(url_for('gestionar_inscripciones_curso',
-                                    course_id=course_id))
-
-        # статус
-        if status in allowed_status:
-            insc.status = status
-
-        # nota (может быть пустой)
-        if nota_str == '':
-            insc.nota = None
-        else:
-            try:
-                insc.nota = float(nota_str)
-            except ValueError:
-                flash('La nota debe ser numérica.', 'warning')
-
-        db.session.commit()
-        flash('Inscripción actualizada.', 'success')
-        return redirect(url_for('gestionar_inscripciones_curso',
-                                course_id=course_id))
-
-    # --- GET: показать список студентов этого курса ---
-    inscripciones = (
-        db.session.query(Enrollment, User)
-        .join(User, User.id == Enrollment.user_id)
-        .filter(Enrollment.course_id == course_id)
-        .all()
-    )
-
-    return render_template(
-        'profesor_inscripciones.html',
-        curso=curso,
-        inscripciones=inscripciones
-    )
-
-@app.route('/form_curso')
-@login_required
-def form_curso():
-    if current_user.role not in ('profesor', 'admin'):
-        return render_template('403.html'), 403
-    return render_template('form_curso.html')
-
-
-@app.route('/agregar_curso', methods=['POST'])
-@login_required
-def agregar_curso():
-    if current_user.role not in ('admin', 'profesor'):
-        return render_template('403.html'), 403
-
-    nombre = (request.form.get('nombre') or '').strip()
-    descripcion = (request.form.get('descripcion') or '').strip()
-    try:
-        precio = float(request.form.get('precio') or 0)
-    except ValueError:
-        precio = 0
-
-    if not nombre:
-        return "Nombre es obligatorio", 400
-
-    # проверка дубликата (как было раньше)
-    exist = Course.query.filter_by(
-        nombre=nombre,
-        teacher_id=current_user.id
-    ).first()
-    if exist:
-        flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
-        return redirect(url_for('form_curso'))
-
-    # NUEVO: S3
-    file = request.files.get('imagen')
-    image_key = subir_imagen_curso(file)
-
-    nuevo = Course(
-        nombre=nombre,
-        descripcion=descripcion,
-        precio=precio,
-        teacher_id=current_user.id if current_user.role == 'profesor' else None,
-        image_key=image_key
-    )
-    db.session.add(nuevo)
-    db.session.commit()
-    flash('Curso creado', 'success')
-    return redirect(url_for('listar_cursos'))
-
-
-@app.route('/cursos/<int:course_id>/edit', methods=['GET', 'POST'])
-@login_required
-def editar_curso(course_id):
-    curso = Course.query.get_or_404(course_id)
-
-    # Permisos: admin o profesor dueño
-    if current_user.role not in ('admin', 'profesor'):
-        return render_template('403.html'), 403
-    if current_user.role != 'admin' and curso.teacher_id != current_user.id:
-        return render_template('403.html'), 403
-
-    if request.method == 'POST':
-        nombre = (request.form.get('nombre') or '').strip()
-        descripcion = (request.form.get('descripcion') or '').strip()
-        try:
-            precio = float(request.form.get('precio') or 0)
-        except ValueError:
-            precio = 0
-
-        
-        dup = Course.query.filter(
-            Course.id != curso.id,
-            Course.teacher_id == curso.teacher_id,
-            Course.nombre == nombre
-        ).first()
-        if dup:
-            flash('Ya existe un curso con ese nombre para este profesor.', 'warning')
-            return redirect(url_for('editar_curso', course_id=curso.id))
-
-        # NUEVO: S3 
-        file = request.files.get('imagen')
-        if file and file.filename:
-            new_key = subir_imagen_curso(file)
-            if new_key:
-                curso.image_key = new_key
-
-        curso.nombre = nombre
-        curso.descripcion = descripcion
-        curso.precio = precio
-        db.session.commit()
-        flash('Curso actualizado', 'success')
-        return redirect(url_for('listar_cursos'))
-
-    # GET
-    return render_template('form_curso.html', curso=curso)
-
-
-@app.route('/cursos/<int:course_id>/delete', methods=['POST'])
-@login_required
-def eliminar_curso(course_id):
-    curso = Course.query.get_or_404(course_id)
-
-    if current_user.role not in ('admin', 'profesor'):
-        return render_template('403.html'), 403
-    if current_user.role != 'admin' and curso.teacher_id != current_user.id:
-        return render_template('403.html'), 403
-
-    db.session.delete(curso)
-    db.session.commit()
-    flash('Curso eliminado', 'info')
-    return redirect(url_for('listar_cursos'))
-
-
-@app.route('/inscribirme/<int:course_id>', methods=['POST'])
-@login_required
-def inscribirme(course_id):
-    if current_user.role != 'estudiante':
-        return render_template('403.html'), 403
-
-    ya = Enrollment.query.filter_by(
-        user_id=current_user.id,
-        course_id=course_id
-    ).first()
-    if ya:
-        return redirect(url_for('mis_cursos', msg='ya_inscripto'))
-
-    if not Course.query.get(course_id):
-        return redirect(url_for('listar_cursos', msg='curso_no_encontrado'))
-
-    insc = Enrollment(
-        user_id=current_user.id,
-        course_id=course_id,
-        status='pendiente'
-    )
-    db.session.add(insc)
-    db.session.commit()
-    return redirect(url_for('mis_cursos', msg='ok'))
-
-
-@app.route('/mis-cursos')
-@login_required
-def mis_cursos():
-    if current_user.role != 'estudiante':
-        return render_template('403.html'), 403
-
-    inscripciones = Enrollment.query.filter_by(user_id=current_user.id).all()
-    cursos_ids = [i.course_id for i in inscripciones]
-    cursos = Course.query.filter(Course.id.in_(cursos_ids)).all() if cursos_ids else []
-
-    msg = request.args.get('msg')
-    return render_template('estudiante.html', cursos=cursos, msg=msg, active='mis_cursos')
-
-
-@app.route('/estudiante/cursos')
-@login_required
-def estudiante_todos_cursos():
-    if current_user.role != 'estudiante':
-        return render_template('403.html'), 403
-
-    cursos = Course.query.all()
-    msg = request.args.get('msg')
-    return render_template(
-        'estudiante.html',
-        cursos=cursos,
-        msg=msg,
-        active='todos_cursos'
-    )
-
-
-# --- Foro ---
-
-@app.route('/foro')
-def ver_foro():
-    # Mostrar una lista de temas del foro de memoria
-    return render_template('foro.html', temas=temas_foro)
 
 
 # --- Error handlers ---
