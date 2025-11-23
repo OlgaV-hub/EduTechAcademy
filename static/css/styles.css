@@ -253,3 +253,11 @@ img.course-image {
 .mis-curso-body {
     flex-grow: 1;
 }
+
+.banner-cursos {
+    width: 100%;
+    max-height: 350px;   /* можно 280–350 по вкусу */
+    object-fit: cover;   
+    border-radius: 0.75rem;
+}
+Твой исходны
