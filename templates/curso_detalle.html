@@ -11,7 +11,6 @@
 
   <div class="row g-4">
 
-    <!-- Левая колонка: картинка + описание + цена/конвертация -->
     <div class="col-12 col-lg-8">
       <div class="card shadow-sm h-100">
 
@@ -38,7 +37,7 @@
             </span>
           </div>
 
-          <!-- Форма конвертации цены -->
+          <!-- Formulario de conversión de precios -->
           <form class="row gy-2 gx-2 align-items-end"
                 method="post"
                 action="{{ url_for('courses.convertir_precio', course_id=curso.id) }}">
@@ -60,7 +59,7 @@
             </div>
           </form>
 
-          <!-- Результат конвертации / ошибка -->
+          <!-- Resultado/error de conversión -->
           {% if converted is defined and converted is not none and not error %}
             <div class="alert alert-success mt-3 mb-0">
               Precio convertido:
@@ -75,18 +74,10 @@
       </div>
     </div>
 
-    <!-- Правая колонка: карточка inscripción -->
     <div class="col-12 col-lg-4">
       <div class="card shadow-sm h-100">
         <div class="card-body">
           <h5 class="mb-3">Inscripción</h5>
-
-          <!-- <form method="post"
-                action="{{ url_for('courses.inscribirme', course_id=curso.id) }}">
-            <button class="btn btn-primary w-100" type="submit">
-              Inscribirme
-            </button>
-          </form> -->
 
           {% if not current_user.is_authenticated %}
             <a class="btn btn-primary w-100"

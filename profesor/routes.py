@@ -1,88 +1,3 @@
-# # profesor/routes.py
-# from flask import (
-#     Blueprint, render_template, redirect,
-#     url_for, request, flash, current_app
-# )
-# from flask_login import login_required, current_user
-
-# profesor_bp = Blueprint("profesor", __name__)
-
-
-# @profesor_bp.route("/profesor")
-# @login_required
-# def profesor_panel():
-#     if current_user.role not in ("profesor", "admin"):
-#         return render_template("403.html"), 403
-#     return render_template("profesor.html")
-
-
-# @profesor_bp.route(
-#     "/profesor/curso/<int:course_id>/inscripciones",
-#     methods=["GET", "POST"],
-# )
-# @login_required
-# def gestionar_inscripciones_curso(course_id):
-#     if current_user.role not in ("profesor", "admin"):
-#         return render_template("403.html"), 403
-
-#     db = current_app.db
-#     Course = current_app.Course
-#     Enrollment = current_app.Enrollment
-#     User = current_app.User
-
-#     curso = Course.query.get_or_404(course_id)
-
-#     # profesor → может видеть только свои курсы
-#     if current_user.role == "profesor" and curso.teacher_id != current_user.id:
-#         return render_template("403.html"), 403
-
-#     if request.method == "POST":
-#         enroll_id_str = request.form.get("enrollment_id", "").strip()
-#         status = request.form.get("status", "").strip()
-#         nota_str = request.form.get("nota", "").strip()
-
-#         allowed_status = ["pendiente", "entregado", "vencido"]
-
-#         try:
-#             enroll_id = int(enroll_id_str)
-#         except ValueError:
-#             flash("ID inválido.", "warning")
-#             return redirect(url_for("profesor.gestionar_inscripciones_curso", course_id=course_id))
-
-#         insc = Enrollment.query.get_or_404(enroll_id)
-
-#         if insc.course_id != curso.id:
-#             flash("No pertenece a este curso.", "warning")
-#             return redirect(url_for("profesor.gestionar_inscripciones_curso", course_id=course_id))
-
-#         if status in allowed_status:
-#             insc.status = status
-
-#         if nota_str == "":
-#             insc.nota = None
-#         else:
-#             try:
-#                 insc.nota = float(nota_str)
-#             except ValueError:
-#                 flash("La nota debe ser numérica.", "warning")
-
-#         db.session.commit()
-#         flash("Actualizado", "success")
-#         return redirect(url_for("profesor.gestionar_inscripciones_curso", course_id=course_id))
-
-#     inscripciones = (
-#         db.session.query(Enrollment, User)
-#         .join(User, User.id == Enrollment.user_id)
-#         .filter(Enrollment.course_id == course_id)
-#         .all()
-#     )
-
-#     return render_template(
-#         "profesor_inscripciones.html",
-#         curso=curso,
-#         inscripciones=inscripciones
-#     )
-
 # profesor/routes.py
 from flask import (
     Blueprint, render_template, redirect,
@@ -98,11 +13,10 @@ profesor_bp = Blueprint("profesor", __name__)
 def profesor_panel():
     if current_user.role != "profesor":
         return render_template("403.html"), 403
-    # просто показ панели с боковым меню
     return render_template("profesor.html")
 
 
-# ---------- Mis cursos (только курсы, где этот профе – teacher) ----------
+# ---------- Mis cursos ----------
 
 @profesor_bp.route("/profesor/mis-cursos")
 @login_required
@@ -122,7 +36,7 @@ def profesor_mis_cursos():
     )
 
 
-# ---------- Todos los cursos (все курсы) ----------
+# ---------- Todos los cursos ----------
 
 @profesor_bp.route("/profesor/todos-cursos")
 @login_required
@@ -142,7 +56,7 @@ def profesor_todos_cursos():
     )
 
 
-# ---------- Calificaciones: все inscripciones по всем курсам ----------
+# ---------- Calificaciones ----------
 
 @profesor_bp.route("/profesor/calificaciones")
 @login_required
@@ -155,7 +69,6 @@ def profesor_calificaciones():
     Enrollment = current_app.Enrollment
     User = current_app.User
 
-    # все inscripciones + курс + студент
     filas = (
         db.session.query(Enrollment, Course, User)
         .join(Course, Enrollment.course_id == Course.id)
@@ -171,7 +84,7 @@ def profesor_calificaciones():
     )
 
 
-# ---------- Редактирование inscripciones по конкретному курсу ----------
+# ---------- Edición de inscripciones por un curso ----------
 
 @profesor_bp.route(
     "/profesor/curso/<int:course_id>/inscripciones",
@@ -179,7 +92,6 @@ def profesor_calificaciones():
 )
 @login_required
 def gestionar_inscripciones_curso(course_id):
-    # ТОЛЬКО ПРОФЕ может редактировать, админ – нет
     if current_user.role != "profesor":
         return render_template("403.html"), 403
 
@@ -189,9 +101,6 @@ def gestionar_inscripciones_curso(course_id):
     User = current_app.User
 
     curso = Course.query.get_or_404(course_id)
-
-    # убрали проверку curso.teacher_id != current_user.id
-    # теперь профе может ставить оценки по любому курсу
 
     if request.method == "POST":
         enroll_id_str = request.form.get("enrollment_id", "").strip()
@@ -239,6 +148,6 @@ def gestionar_inscripciones_curso(course_id):
         "profesor_inscripciones.html",
         curso=curso,
         inscripciones=inscripciones,
-        active="mis_cursos",   # подсветка пункта в боковом меню
-        solo_lectura=False     # профе МОЖЕТ редактировать
+        active="mis_cursos",  
+        solo_lectura=False     
     )

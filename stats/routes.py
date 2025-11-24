@@ -5,7 +5,7 @@ import textwrap
 import pandas as pd
 import matplotlib
 matplotlib.use("Agg")
-import matplotlib.pyplot as plt  # noqa: E402
+import matplotlib.pyplot as plt  
 
 from flask import current_app, render_template, send_file
 from flask_login import login_required, current_user
@@ -14,10 +14,7 @@ from . import stats_bp
 
 
 def _get_db_models():
-    """
-    Достаём db и модели, которые мы повесили на app:
-    app.db, app.Course, app.Enrollment.
-    """
+
     db = current_app.db
     Course = current_app.Course
     Enrollment = current_app.Enrollment
@@ -25,7 +22,7 @@ def _get_db_models():
 
 
 def _fig_to_png(fig):
-    """Сохранить фигуру в PNG и вернуть send_file."""
+
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
     buf.seek(0)
@@ -106,7 +103,7 @@ def admin_notas_png():
             db.func.avg(Enrollment.nota).label("nota_promedio"),
         )
         .join(Enrollment, Enrollment.course_id == Course.id)
-        .filter(Enrollment.nota != None)  # noqa: E711
+        .filter(Enrollment.nota != None)  
         .group_by(Course.id, Course.nombre)
     )
 
@@ -193,7 +190,7 @@ def admin_actividad_png():
     return _fig_to_png(fig)
 
 
-# ---------- ADMIN / PROF: страница с тремя графиками ----------
+# ---------- ADMIN / PROF: una página con tres gráficos ----------
 
 @stats_bp.route("/admin/stats")
 @login_required
@@ -301,7 +298,7 @@ def estudiante_estado_entregas_png():
     return _fig_to_png(fig)
 
 
-# ---------- ESTUDIANTE: страница «Mi estadística» ----------
+# ---------- ESTUDIANTE: pagina «Mi estadística» ----------
 
 @stats_bp.route("/estudiante/stats")
 @login_required

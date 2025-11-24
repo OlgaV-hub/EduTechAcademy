@@ -1,67 +1,3 @@
-# admin/routes.py
-# from flask import (
-#     Blueprint, render_template, redirect,
-#     url_for, request, current_app
-# )
-# from flask_login import login_required, current_user
-
-# admin_bp = Blueprint("admin", __name__)
-
-
-# @admin_bp.route("/admin")
-# @login_required
-# def admin_panel():
-#     if current_user.role != "admin":
-#         return render_template("403.html"), 403
-#     return render_template("admin.html")
-
-
-# @admin_bp.route("/admin/users")
-# @login_required
-# def admin_users():
-#     if current_user.role != "admin":
-#         return render_template("403.html"), 403
-
-#     User = current_app.User
-#     users = User.query.all()
-#     return render_template("admin_users.html", users=users)
-
-
-# @admin_bp.route("/admin/users/<int:user_id>/update_role", methods=["POST"])
-# @login_required
-# def admin_update_user_role(user_id):
-#     if current_user.role != "admin":
-#         return render_template("403.html"), 403
-
-#     db = current_app.db
-#     User = current_app.User
-
-#     new_role = request.form.get("role")
-#     user = User.query.get_or_404(user_id)
-#     user.role = new_role
-#     db.session.commit()
-
-#     return redirect(url_for("admin.admin_users"))
-
-
-# @admin_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
-# @login_required
-# def admin_delete_user(user_id):
-#     if current_user.role != "admin":
-#         return render_template("403.html"), 403
-
-#     db = current_app.db
-#     User = current_app.User
-
-#     user = User.query.get_or_404(user_id)
-
-#     if user.id == current_user.id:
-#         return redirect(url_for("admin.admin_users"))
-
-#     db.session.delete(user)
-#     db.session.commit()
-#     return redirect(url_for("admin.admin_users"))
-
 from flask import (
     Blueprint, render_template, redirect,
     url_for, request, current_app
@@ -71,8 +7,6 @@ from flask_login import login_required, current_user
 admin_bp = Blueprint("admin", __name__)
 
 
-# ---------- Панель администратора (резюме) ----------
-
 @admin_bp.route("/admin")
 @login_required
 def admin_panel():
@@ -80,8 +14,6 @@ def admin_panel():
         return render_template("403.html"), 403
     return render_template("admin.html")
 
-
-# ---------- Gestión de usuarios (CRUD ролей/удаление) ----------
 
 @admin_bp.route("/admin/users")
 @login_required
@@ -122,7 +54,6 @@ def admin_delete_user(user_id):
 
     user = User.query.get_or_404(user_id)
 
-    # админ не может удалить самого себя
     if user.id == current_user.id:
         return redirect(url_for("admin.admin_users"))
 
@@ -132,10 +63,10 @@ def admin_delete_user(user_id):
 
 
 # =====================================================
-#     КУРСЫ ДЛЯ АДМИНА
+#     Cursos para ADMIN
 # =====================================================
 
-# ---------- Mis cursos (курсы, где admin = teacher) ----------
+# ---------- Mis cursos (admin = teacher) ----------
 
 @admin_bp.route("/admin/mis-cursos")
 @login_required
@@ -155,7 +86,7 @@ def admin_mis_cursos():
     )
 
 
-# ---------- Todos los cursos (все курсы) ----------
+# ---------- Todos los cursos ----------
 
 @admin_bp.route("/admin/todos-cursos")
 @login_required
@@ -175,7 +106,7 @@ def admin_todos_cursos():
     )
 
 
-# ---------- Ver inscripciones (ТОЛЬКО ПРОСМОТР) ----------
+# ---------- Ver inscripciones ----------
 
 @admin_bp.route("/admin/curso/<int:course_id>/inscripciones")
 @login_required
@@ -197,7 +128,6 @@ def admin_ver_inscripciones_curso(course_id):
         .all()
     )
 
-    # используем тот же шаблон, но в режиме solo_lectura
     return render_template(
         "profesor_inscripciones.html",
         curso=curso,

@@ -3,10 +3,6 @@
 {% extends "base.html" %}
 {% block content %}
 
-<!-- <img src="{{ url_for('static', filename='img/cursos_baner3.png') }}"
-     alt="Cursos EduTech"
-     class="img-fluid mb-4 banner-cursos"> -->
-
 {% if not panel %}
 <div class="img-fluid mb-4 banner-cursos">
     <img src="{{ url_for('static', filename='img/cursos_baner3.png') }}"
@@ -86,10 +82,8 @@
   </div>
 
 {% else %}
-  {# ---------- Публичный список (для незалогиненных и всех остальных) ---------- #}
+  {# ---------- Lista pública (para quienes no han iniciado sesión y todos los demás) ---------- #}
   <h2 class="mb-3">Listado de cursos</h2>
-
-  {# Баннер добавим отдельным шагом, чтобы не перегружать изменения #}
 
   <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
     {% for c in cursos %}

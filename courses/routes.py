@@ -10,7 +10,6 @@ courses_bp = Blueprint("courses", __name__)
 
 @courses_bp.route("/cursos")
 def listar_cursos():
-    """Публичный список курсов (для незалогиненных и всех ролей)."""
     Course = current_app.Course
     cursos = Course.query.all()
     return render_template("cursos.html", cursos=cursos)
@@ -60,24 +59,24 @@ def convertir_precio(course_id):
 @courses_bp.route("/form_curso")
 @login_required
 def form_curso():
-    # Только проф / админ могут создавать курсы
+
     if current_user.role not in ("profesor", "admin"):
         return render_template("403.html"), 403
 
-    # Какой макет использовать
+
     if current_user.role == "profesor":
         panel_template = "profesor.html"
         panel = "profesor"
-    else:  # admin
+    else:  
         panel_template = "admin.html"
         panel = "admin"
 
     return render_template(
         "form_curso.html",
-        panel_template=panel_template,  # <- имя макета
-        panel=panel,                    # 'profesor' или 'admin'
-        active="agregar_curso",         # подсветка пункта меню
-        curso=None                      # форма "создать", не "редактировать"
+        panel_template=panel_template,  
+        panel=panel,                    
+        active="agregar_curso",        
+        curso=None                   
     )
 
 @courses_bp.route("/agregar_curso", methods=["POST"])
@@ -110,7 +109,10 @@ def agregar_curso():
         return redirect(url_for("courses.form_curso"))
 
     file = request.files.get("imagen")
-    image_key = subir_imagen_curso(file)
+    image_key = None
+
+    if file and getattr(file, "filename", ""):
+        image_key = subir_imagen_curso(file)
 
     nuevo = Course(
         nombre=nombre,
@@ -124,14 +126,12 @@ def agregar_curso():
 
     flash("Curso creado", "success")
     
-    # после commit()
     if current_user.role == "profesor":
         return redirect(url_for("profesor.profesor_todos_cursos"))
 
     if current_user.role == "admin":
         return redirect(url_for("admin.admin_todos_cursos"))
 
-    # fallback (не должен сработать)
     return redirect(url_for("courses.listar_cursos"))
 
 @courses_bp.route("/curso/<int:course_id>/editar", methods=["GET", "POST"])
@@ -142,11 +142,9 @@ def editar_curso(course_id):
 
     curso = Course.query.get_or_404(course_id)
 
-    # Права доступа: только admin и profesor
     if current_user.role not in ("admin", "profesor"):
         return render_template("403.html"), 403
 
-    # Профе может редактировать только свои курсы
     if current_user.role == "profesor" and curso.teacher_id != current_user.id:
         return render_template("403.html"), 403
 
@@ -160,7 +158,6 @@ def editar_curso(course_id):
         except ValueError:
             precio = 0.0
 
-        # Проверка на дубликат имени
         dup = Course.query.filter(
             Course.id != curso.id,
             Course.nombre == nombre,
@@ -169,7 +166,6 @@ def editar_curso(course_id):
             flash("Nombre duplicado", "warning")
             return redirect(url_for("courses.editar_curso", course_id=curso.id))
 
-        # Обновление изображения (если выбрано)
         file = request.files.get("imagen")
         if file and file.filename:
             new_key = subir_imagen_curso(file)
@@ -183,14 +179,12 @@ def editar_curso(course_id):
 
         flash("Actualizado", "success")
 
-        # 👉 Редирект по роли, а НЕ на /cursos
         if current_user.role == "profesor":
             return redirect(url_for("profesor.profesor_todos_cursos"))
         if current_user.role == "admin":
             return redirect(url_for("admin.admin_todos_cursos"))
         return redirect(url_for("courses.listar_cursos"))
 
-    # GET: показать форму с нужным layout (чтобы было боковое меню)
     panel = None
     if current_user.role == "profesor":
         panel = "profesor"
@@ -207,7 +201,6 @@ def eliminar_curso(course_id):
 
     curso = Course.query.get_or_404(course_id)
 
-    # Права доступа
     if current_user.role not in ("admin", "profesor"):
         return render_template("403.html"), 403
     if current_user.role == "profesor" and curso.teacher_id != current_user.id:
@@ -217,7 +210,6 @@ def eliminar_curso(course_id):
     db.session.commit()
     flash("Curso eliminado", "info")
 
-    # 👉 После удаления возвращаем на панель в зависимости от роли
     if current_user.role == "profesor":
         return redirect(url_for("profesor.profesor_todos_cursos"))
     if current_user.role == "admin":

@@ -6,14 +6,12 @@
 {% block content %}
 <div class="row g-4">
 
-  <!-- ЛЕВАЯ КОЛОНКА: боковое меню -->
   <div class="col-12 col-md-3">
     {# подсветим в сайдбаре пункт "Agregar curso" #}
     {% set active = 'agregar_curso' %}
     {% include "_sidebar.html" %}
   </div>
 
-  <!-- ПРАВАЯ КОЛОНКА: форма -->
   <div class="col-12 col-md-9">
     <h1 class="mb-4">
       {{ 'Editar curso' if curso else 'Crear nuevo curso' }}
@@ -51,7 +49,6 @@
                value="{{ curso.precio if curso else '' }}">
       </div>
 
-      <!-- Поле для изображения -->
       <div class="mb-3">
         <label for="imagen" class="form-label">Imagen del curso (opcional)</label>
         <input class="form-control"

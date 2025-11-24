@@ -32,20 +32,20 @@ FX_API_ALT = os.getenv('FX_API_ALT', 'https://api.frankfurter.app')
 # --- Flask app ---
 app = Flask(__name__)
 
-# Конфиг приложения / БД
+# Configuración de la aplicación / BD
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY') or 'clave_secreta_123'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL') or 'sqlite:///users.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Конфиг Google OAuth (как у профе)
+# Configuración de Google OAuth 
 app.config["GOOGLE_CLIENT_ID"] = os.getenv("GOOGLE_CLIENT_ID")
 app.config["GOOGLE_CLIENT_SECRET"] = os.getenv("GOOGLE_CLIENT_SECRET")
 
-# Регистрация OAuth-клиента и auth-blueprint
+# Registrar un cliente OAuth y auth-blueprint
 oauth.init_app(app)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 
-# --- Расширения ---
+# --- Extensiones---
 db = SQLAlchemy()
 bcrypt = Bcrypt()
 login_manager = LoginManager()
@@ -84,10 +84,8 @@ class Enrollment(db.Model):
     course_id = db.Column(db.Integer, nullable=False)
     status    = db.Column(db.String(20), nullable=False, default='pendiente')
     
-    # когда студент записался на курс
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     
-    # итоговая оценка по курсу (0–10, например)
     nota = db.Column(db.Float, nullable=True)
 
 app.db = db
@@ -109,20 +107,16 @@ def login_or_register_google_user(user_info):
     name = user_info.get("name") or email
 
     if not email:
-        # Без email не можем связать с нашей таблицей User
         return None, "No se pudo obtener el email desde Google."
 
-    # Ищем пользователя по username=email
     user = User.query.filter_by(username=email).first()
 
-    # Если пользователя ещё нет – создаём как estudiante
     if not user:
-        # Генерируем случайный пароль, чтобы поле password не было пустым
         random_hash = bcrypt.generate_password_hash(os.urandom(16)).decode("utf-8")
         user = User(
             username=email,
             password=random_hash,
-            role="estudiante",  # базовая роль
+            role="estudiante",  
         )
         db.session.add(user)
         db.session.commit()
@@ -131,15 +125,12 @@ def login_or_register_google_user(user_info):
 
 
 def convertir_monto_desde_usd(amount: float, to: str):
-    """
-    Пробуем 2–3 бесплатных API. Возвращаем (valor_convertido, error_str).
-    Внутренняя валюта – USD.
-    """
+
     providers = [FX_API_BASE, FX_API_FALLBACK, FX_API_ALT]
 
     for base in providers:
         try:
-            # 1) exchangerate.host (поддерживает ARS и есть endpoint /convert)
+            # 1) exchangerate.host (Admite ARS y tiene endpoint /convert)
             if 'exchangerate.host' in base:
                 r = requests.get(
                     f"{base}/convert",
@@ -151,18 +142,18 @@ def convertir_monto_desde_usd(amount: float, to: str):
                     if data.get("result") is not None:
                         return float(data["result"]), None
 
-            # 2) open.er-api.com (без ключа; берём курс и умножаем)
+            # 2) open.er-api.com 
             elif 'open-er-api' in base or 'open.er-api.com' in base:
                 r = requests.get(f"{base}/latest/USD", timeout=6)
                 if r.ok:
                     data = r.json()
-                    # ожидаем {"result":"success","conversion_rates":{"ARS": ...}}
+
                     if data.get("result") == "success":
                         rate = data.get("conversion_rates", {}).get(to)
                         if rate:
                             return float(amount) * float(rate), None
 
-            # 3) frankfurter.app (стабильный, но НЕТ ARS; для EUR/USD)
+            # 3) frankfurter.app (estable, pero NO ARS; para EUR/USD)
             elif 'frankfurter.app' in base:
                 r = requests.get(
                     f"{base}/latest",
@@ -173,10 +164,10 @@ def convertir_monto_desde_usd(amount: float, to: str):
                     data = r.json()
                     rate_value = data.get("rates", {}).get(to)
                     if rate_value is not None:
-                        # здесь API сразу возвращает уже умноженную сумму
+                        # Aquí la API devuelve inmediatamente la suma ya multiplicada.
                         return float(rate_value), None
         except requests.RequestException:
-            # пробуем следующий провайдер
+            # Probemos con el siguiente proveedor
             continue
 
     return None, "Todas las APIs fallaron o no están disponibles ahora."
@@ -192,15 +183,12 @@ def redirect_by_role(role: str):
     return redirect(url_for('estudiante.estudiante_panel'))
 
 
-# Даём доступ к этим функциям через объект app,
-# чтобы blueprints могли их вызывать через current_app,
-# не импортируя модуль app вторым разом.
 app.login_or_register_google_user = login_or_register_google_user
 app.redirect_by_role = redirect_by_role
 
 
 def seed_cursos_si_hace_falta():
-    """Создаёт 1–2 курса, если таблица пустая."""
+
     if Course.query.count() == 0:
         db.session.add_all([
             Course(nombre="Programación 1", descripcion="Curso base", precio=100.0),
@@ -211,14 +199,14 @@ def seed_cursos_si_hace_falta():
 
 @login_manager.user_loader
 def load_user(user_id):
-    """Flask-Login: получить пользователя по ID (всегда из БД)."""
+
     try:
         return User.query.get(int(user_id))
     except Exception:
         return None
 
 
-# Простейший форум в памяти
+# Foro
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
 app.temas_foro = temas_foro
 
@@ -230,7 +218,7 @@ def seed_usuarios_si_hace_falta():
     def ensure(username, password, role):
         u = User.query.filter_by(username=username).first()
         if not u:
-            # В модели поле называется password, там хранится хэш
+            # En el modelo, el campo se llama contraseña y almacena un hash.
             password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
             u = User(username=username, password=password_hash, role=role)
             db.session.add(u)
@@ -248,12 +236,12 @@ def seed_usuarios_si_hace_falta():
     
 
 def seed_stats_demo():
-    """Создаёт демо-инскрипции и оценки для графиков, если таблица пустая."""
+    """Crea descripciones de demostración y estimaciones para gráficos si la tabla está vacía."""
     if Enrollment.query.count() > 0:
         print("Seed stats -> ya hay inscripciones, no se crean datos demo")
         return
 
-    # 1) Находим/создаём демо-студента
+    # 1) Buscar/crear un alumno-demo
     est = User.query.filter_by(username="alumno_demo").first()
     if not est:
         pw_hash = bcrypt.generate_password_hash("demo123").decode("utf-8")
@@ -262,11 +250,10 @@ def seed_stats_demo():
         db.session.commit()
         print("Seed stats -> creado usuario alumno_demo / demo123")
 
-    # 2) Курсы (из seed_cursos)
+    # 2) Cursos (de seed_cursos)
     c1 = Course.query.filter_by(nombre="Programación 1").first()
     c2 = Course.query.filter_by(nombre="Base de Datos").first()
 
-    # если нет — на всякий случай создадим
     if not c1:
         c1 = Course(nombre="Programación 1", descripcion="Curso base", precio=100.0)
         db.session.add(c1)
@@ -275,11 +262,11 @@ def seed_stats_demo():
         db.session.add(c2)
     db.session.commit()
 
-    # 3) Даты для активности
+    # 3) Fechas de la actividad
     now = datetime.utcnow()
 
     demo_ins = [
-        # Curso 1: entregado, высокая оценка
+        # Curso 1: entregado
         Enrollment(
             user_id=est.id,
             course_id=c1.id,
@@ -287,7 +274,7 @@ def seed_stats_demo():
             nota=9.0,
             created_at=now - timedelta(days=10),
         ),
-        # Curso 2: entregado, с оценкой 7 (чтобы появился на графике notas)
+        # Curso 2: entregado
         Enrollment(
             user_id=est.id,
             course_id=c2.id,
@@ -295,7 +282,7 @@ def seed_stats_demo():
             nota=7.0,
             created_at=now - timedelta(days=7),
         ),
-        # Curso 1: ещё одна entrega, чтобы был "пик" по датам
+        # Curso 1: Otra entrada para tener un "pico" de fechas
         Enrollment(
             user_id=est.id,
             course_id=c1.id,
@@ -303,7 +290,7 @@ def seed_stats_demo():
             nota=8.0,
             created_at=now - timedelta(days=4),
         ),
-        # Дополнительная запись "не сдано" (pendiente, без оценки)
+        # Entrada adicional "reprobado" (pendiente, sin calificación)
         Enrollment(
             user_id=est.id,
             course_id=c2.id,
@@ -323,7 +310,7 @@ def seed_stats_demo():
 def _init_db_and_seed():
     with app.app_context():
         db.create_all()
-        # Если эти функции уже есть — они просто создадут записи, если их нет
+
         try:
             seed_cursos_si_hace_falta()
         except Exception:
@@ -332,9 +319,11 @@ def _init_db_and_seed():
             seed_usuarios_si_hace_falta()
         except Exception:
             pass
+        try:
+            seed_stats_demo()
+        except Exception:
+            pass
 
-
-# вызываем инициализацию на старте процесса (импорт модуля под gunicorn)
 _init_db_and_seed()
 
 # ---REGISTRO DE BLUEPRINTS---
@@ -379,7 +368,6 @@ def login():
             flash('Usuario no encontrado.', 'danger')
             return redirect(url_for('login'))
 
-        # пароль хранится как bcrypt-хэш в user.password
         if not bcrypt.check_password_hash(user.password, password):
             flash('Contraseña incorrecta.', 'danger')
             return redirect(url_for('login'))
@@ -387,7 +375,6 @@ def login():
         login_user(user)
         flash('Sesión iniciada.', 'success')
 
-        # Имена эндпоинтов 
         if user.role == 'admin':
             return redirect(url_for('admin.admin_panel'))
         elif user.role == 'profesor':
@@ -404,14 +391,12 @@ def register():
         username = (request.form.get('username') or '').strip()
         password = request.form.get('password') or ''
 
-        # назначаем роль студенту
         role = 'estudiante'
 
         if not username or not password:
             flash('Debe completar usuario y contraseña.', 'warning')
             return redirect(url_for('register'))
 
-        # проверяем дубликаты по username
         if User.query.filter_by(username=username).first():
             flash('El usuario ya existe.', 'warning')
             return redirect(url_for('register'))

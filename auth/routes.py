@@ -24,12 +24,9 @@ def authorize():
     from flask import current_app
 
     try:
-        # 1) Получаем токен и данные пользователя
         token = google.authorize_access_token()
         user_info = google.userinfo()
     except Exception as e:
-        # Если не можем достучаться до Google (как сейчас) —
-        # покажем понятную ошибку и вернем на /login.
         flash("No se pudo conectar con Google. Intenta nuevamente más tarde.", "danger")
         return redirect(url_for("login"))
 
