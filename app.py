@@ -98,11 +98,7 @@ app.User = User
 # =========================
 
 def login_or_register_google_user(user_info):
-    """
-    Принимает словарь user_info от Google,
-    возвращает (user, error_message).
-    Если user=None, то error_message содержит текст ошибки.
-    """
+
     email = user_info.get("email")
     name = user_info.get("name") or email
 
@@ -212,7 +208,7 @@ app.temas_foro = temas_foro
 
 
 def seed_usuarios_si_hace_falta():
-    """Создаёт admin и profesor, если их ещё нет. Идемпотентно."""
+
     created = []
 
     def ensure(username, password, role):
@@ -450,5 +446,5 @@ if __name__ == '__main__':
         db.create_all()
         seed_cursos_si_hace_falta()
         seed_usuarios_si_hace_falta()
-        seed_stats_demo()
+        seed_stats_demo() 
     app.run(debug=True)
