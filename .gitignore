@@ -12,3 +12,6 @@ instance/
 
 # IDE
 .vscode/
+
+# Local media (por si guardas imágenes)
+static/uploads/
