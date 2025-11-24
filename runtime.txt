@@ -1,1 +1,1 @@
-'python-3.12.7' | Out-File -FilePath runtime.txt -Encoding ascii -NoNewline
+python-3.12.7
