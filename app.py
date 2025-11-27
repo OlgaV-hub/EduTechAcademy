@@ -93,6 +93,15 @@ app.Course = Course
 app.Enrollment = Enrollment
 app.User = User
 
+# --- Flask-Login: cómo cargar usuario por ID ---
+@login_manager.user_loader
+def load_user(user_id):
+    """Devuelve el usuario por id para Flask-Login."""
+    try:
+        return User.query.get(int(user_id))
+    except Exception:
+        return None
+
 # =========================
 # 3) SERVICES & HELPERS
 # =========================
