@@ -291,3 +291,6 @@ instance/users.db
  - Analítica activa
  - Blueprint modular
  - Variables de entorno separadas
+
+ ## Mejoras futuras
+ Migrar de SQLite a PostgreSQL para entorno de producción (ya se evaluó como posible mejora con el profesor).

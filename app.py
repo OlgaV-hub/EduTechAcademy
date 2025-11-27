@@ -183,156 +183,53 @@ app.login_or_register_google_user = login_or_register_google_user
 app.redirect_by_role = redirect_by_role
 
 
-def seed_cursos_si_hace_falta():
-
-    if Course.query.count() == 0:
-        db.session.add_all([
-            Course(nombre="Programación 1", descripcion="Curso base", precio=100.0),
-            Course(nombre="Base de Datos", descripcion="Modelado y SQL", precio=120.0),
-        ])
-        db.session.commit()
-
-
-@login_manager.user_loader
-def load_user(user_id):
-
-    try:
-        return User.query.get(int(user_id))
-    except Exception:
-        return None
-
-
 # Foro
 temas_foro = ["Bienvenida", "Dudas de inscripción"]
 app.temas_foro = temas_foro
 
 
-def seed_usuarios_si_hace_falta():
-
-    created = []
-
-    def ensure(username, password, role):
-        u = User.query.filter_by(username=username).first()
-        if not u:
-            # En el modelo, el campo se llama contraseña y almacena un hash.
-            password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-            u = User(username=username, password=password_hash, role=role)
-            db.session.add(u)
-            db.session.commit()
-            created.append(f'{username} ({role})')
-
-    ensure('admin', 'admin123', 'admin')
-    ensure('prof',  'prof123',  'profesor')
-    ensure('alumno_demo', 'demo123', 'estudiante')
-
-    if created:
-        print('Seed usuarios -> creados:', created)
-    else:
-        print('Seed usuarios -> ya existen')
-    
-
-def seed_stats_demo():
-    """Crea descripciones de demostración y estimaciones para gráficos si la tabla está vacía."""
-    if Enrollment.query.count() > 0:
-        print("Seed stats -> ya hay inscripciones, no se crean datos demo")
-        return
-
-    # 1) Buscar/crear un alumno-demo
-    est = User.query.filter_by(username="alumno_demo").first()
-    if not est:
-        pw_hash = bcrypt.generate_password_hash("demo123").decode("utf-8")
-        est = User(username="alumno_demo", password=pw_hash, role="estudiante")
-        db.session.add(est)
-        db.session.commit()
-        print("Seed stats -> creado usuario alumno_demo / demo123")
-
-    # 2) Cursos (de seed_cursos)
-    c1 = Course.query.filter_by(nombre="Programación 1").first()
-    c2 = Course.query.filter_by(nombre="Base de Datos").first()
-
-    if not c1:
-        c1 = Course(nombre="Programación 1", descripcion="Curso base", precio=100.0)
-        db.session.add(c1)
-    if not c2:
-        c2 = Course(nombre="Base de Datos", descripcion="Modelado y SQL", precio=120.0)
-        db.session.add(c2)
-    db.session.commit()
-
-    # 3) Fechas de la actividad
-    now = datetime.utcnow()
-
-    demo_ins = [
-        # Curso 1: entregado
-        Enrollment(
-            user_id=est.id,
-            course_id=c1.id,
-            status="entregado",
-            nota=9.0,
-            created_at=now - timedelta(days=10),
-        ),
-        # Curso 2: entregado
-        Enrollment(
-            user_id=est.id,
-            course_id=c2.id,
-            status="entregado",
-            nota=7.0,
-            created_at=now - timedelta(days=7),
-        ),
-        # Curso 1: Otra entrada para tener un "pico" de fechas
-        Enrollment(
-            user_id=est.id,
-            course_id=c1.id,
-            status="entregado",
-            nota=8.0,
-            created_at=now - timedelta(days=4),
-        ),
-        # Entrada adicional "reprobado" (pendiente, sin calificación)
-        Enrollment(
-            user_id=est.id,
-            course_id=c2.id,
-            status="pendiente",
-            nota=None,
-            created_at=now - timedelta(days=1),
-        ),
-    ]
-
-    db.session.add_all(demo_ins)
-    db.session.commit()
-    print("Seed stats -> creadas inscripciones demo")
-
 
 # --- INIT DB EN RENDER / PROD (Flask 3.x, sin before_first_request) ---
+
+from seeds import (
+    seed_cursos_si_hace_falta,
+    seed_usuarios_si_hace_falta,
+    seed_stats_demo,
+)
+
 
 def _init_db_and_seed():
     with app.app_context():
         db.create_all()
 
         try:
-            seed_cursos_si_hace_falta()
-        except Exception:
-            pass
+            seed_cursos_si_hace_falta(db, Course)
+        except Exception as e:
+            print("Error en seed_cursos_si_hace_falta:", e)
+
         try:
-            seed_usuarios_si_hace_falta()
-        except Exception:
-            pass
+            seed_usuarios_si_hace_falta(db, User, bcrypt)
+        except Exception as e:
+            print("Error en seed_usuarios_si_hace_falta:", e)
+
         try:
-            seed_stats_demo()
-        except Exception:
-            pass
+            seed_stats_demo(db, User, Course, Enrollment, bcrypt)
+        except Exception as e:
+            print("Error en seed_stats_demo:", e)
+
 
 _init_db_and_seed()
 
-# ---REGISTRO DE BLUEPRINTS---
+# --- REGISTRO DE BLUEPRINTS ---
 
 from stats import stats_bp
-app.register_blueprint(stats_bp)
-
 from courses import courses_bp
 from profesor import profesor_bp
 from admin import admin_bp
 from foro import foro_bp
 from estudiante import estudiante_bp
 
+app.register_blueprint(stats_bp)
 app.register_blueprint(courses_bp)
 app.register_blueprint(profesor_bp)
 app.register_blueprint(admin_bp)
@@ -442,9 +339,4 @@ def err_404(e):
 # =========================
 
 if __name__ == '__main__':
-    with app.app_context():
-        db.create_all()
-        seed_cursos_si_hace_falta()
-        seed_usuarios_si_hace_falta()
-        seed_stats_demo() 
     app.run(debug=True)
