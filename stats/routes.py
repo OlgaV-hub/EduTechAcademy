@@ -4,14 +4,14 @@ import io
 import textwrap
 
 import matplotlib
-matplotlib.use("Agg")  # backend sin pantalla
+matplotlib.use("Agg")  
 import matplotlib.pyplot as plt
 import pandas as pd
 
 from flask import current_app, render_template, send_file
 from flask_login import login_required, current_user
 
-# ВАЖНО: используем blueprint, созданный в __init__.py
+
 from . import stats_bp
 
 
@@ -78,7 +78,7 @@ def admin_inscripciones_png():
 
     df = pd.DataFrame(rows, columns=["curso", "cantidad"])
 
-    # перенос подписей (2–3 строки)
+ 
     etiquetas = [textwrap.fill(nombre, width=18) for nombre in df["curso"]]
 
     fig, ax = plt.subplots(figsize=(9, 4))
@@ -203,7 +203,7 @@ def admin_stats_page():
 def profesor_stats_page():
     if current_user.role != "profesor":
         return "Acceso denegado", 403
-    # reutilizamos el mismo template que admin
+
     return render_template("admin_stats.html", active="stats")
 
 

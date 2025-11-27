@@ -1,296 +1,286 @@
-# EduTechAcademy — base
+# EduTechAcademy — Plataforma Educativa (Flask)
 
-## Setup
+Plataforma educativa con autenticación (local + Google OAuth), gestión de cursos por rol, paneles dedicados, subida de imágenes a AWS S3 y módulo de analítica (Pandas + Matplotlib).
+Proyecto desarrollado para el Parcial 2 — Análisis y Metodología de Sistemas (AMS).
+
+# Arquitectura General
+
+El proyecto está organizado en módulos independientes mediante Blueprints:
+
+EduTechAcademy/
+│
+├── app.py                # Aplicación principal / registro de Blueprints
+├── seeds.py              # Datos demo (usuarios, cursos, inscripciones, notas)
+│
+├── admin/                # Panel Administrador
+├── auth/                 # Autenticación local + Google OAuth
+├── profesor/             # Panel Profesor
+├── estudiante/           # Panel Estudiante
+├── courses/              # CRUD de cursos
+├── foro/                 # Foro simple
+├── services/             # S3 / conversión de moneda / utilidades
+├── stats/                # Generación de gráficos con Pandas + Matplotlib
+│
+├── templates/            # Vistas Jinja2
+├── static/               # CSS, JS, imágenes
+│
+├── requirements.txt
+└── .env.example
+
+
+Características:
+
+Blueprints reales (módulos desacoplados).
+
+Gestión de roles sin modificar app.py.
+
+Servicios externos aislados en /services.
+
+Datos demo fuera del código productivo (solo seeds.py).
+
+# Instalación (Local)
+
+1. Crear entorno virtual:
 
 python -m venv .venv
-.venv\Scripts\Activate
+.venv\Scripts\activate  (Windows)
+source .venv/bin/activate  (Linux/Mac)
+
+
+2. Instalar dependencias:
+
 pip install -r requirements.txt
 
-## Env
 
-Copia `.env.example` a `.env` y asigna valores:
-SECRET_KEY
-DATABASE_URL (local: sqlite:///users.db)
-
-## Run
-
-python app.py
-
-# http://127.0.0.1:5000
-
-## Roles
-
-Admin: acceso total al panel y gestión de cursos
-Profesor: creación, edición y eliminación de sus propios cursos
-Estudiante: inscripción y visualización de cursos
-
-## Conversión de precio (API)
-
-- Ruta: POST /cursos/<id>/convert
-- Base: https://api.exchangerate.host  (fallback: https://api.frankfurter.app)
-- Desde USD a ARS/EUR; en caso de caída muestra mensaje de error controlado.
-
-## Deploy (Render)
-
-Crear cuenta en https://render.com
-
-Nuevo servicio → Web Service
-
-Conectar el repositorio del proyecto (GitHub)
-
-En “Build Command”:
-pip install -r requirements.txt
-
-En “Start Command”:
-gunicorn app:app
-
-Agregar variables de entorno:
-SECRET_KEY = clave_secreta
-DATABASE_URL = sqlite:///users.db
-
-Presionar Deploy y abrir la URL generada.
-
-## Google OAuth (Login con Google)
-
-La aplicación permite iniciar sesión con Google usando OAuth 2.0.
-
-### Cómo funciona
-
-- El usuario hace clic en **Iniciar sesión con Google**.
-- Google devuelve los datos del usuario (email, nombre, id).
-- Se busca ese email en la base local (`User`):
-  - si existe → se usa su rol actual (admin / profesor / estudiante);
-  - si no existe → se crea un usuario nuevo con rol **estudiante**.
-- Se inicia sesión con `login_user()` (Flask-Login).
-- Se redirige al panel correspondiente según el rol:
-  - `/admin`
-  - `/profesor`
-  - `/estudiante`
-
-### Requisitos en `.env`
-
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=http://127.0.0.1:5000/auth/authorize
-
-### Gestión de roles
-
-El administrador puede cambiar roles desde  
-`/admin/users` (listar, cambiar rol, eliminar).
-
-
-
-## EduTechAcademy — Proyecto Parcial 2
-
-Plataforma educativa con autenticación, roles, gestión de cursos, inscripciones, subida de imágenes a AWS S3 y módulo de analítica con Pandas + Matplotlib.
-
-## Setup (Local)
-python -m venv .venv
-.venv\Scripts\Activate
-pip install -r requirements.txt
-
-## Env (Variables de entorno)
-
-Copia .env.example → .env y asigna valores:
+3. Copiar .env.example a .env y completar:
 
 SECRET_KEY=
 DATABASE_URL=sqlite:///users.db
 
-Google OAuth
+## Google OAuth
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 GOOGLE_REDIRECT_URI=http://127.0.0.1:5000/auth/authorize
 
-AWS S3 (para imágenes de cursos)
+## AWS S3
 AWS_REGION=
 S3_BUCKET=
 AWS_ACCESS_KEY_ID=
 AWS_SECRET_ACCESS_KEY=
 
-
-## SQLite guarda datos en:
-/instance/users.db
-
-## Run (Local)
+# Ejecución (Local)
 python app.py
 
 
-Abrir en navegador:
+Abrir en el navegador:
+
 http://127.0.0.1:5000
 
-## Roles del sistema
+# Datos Demo
 
-Admin
+Los datos demo ya no están dentro de app.py.
+Todo el seed se ejecuta desde:
 
- - acceso total
- - CRUD cursos
- - CRUD roles
- - ver / editar usuarios y sus roles
-
-Profesor
-
- - crear / editar / eliminar sus propios cursos
- - gestionar inscripciones
- - colocar calificaciones
- - acceso a estadísticas propias
-
-Estudiante
-
- - ver cursos
- - inscribirse
- - revisar cursos inscritos
- - panel de estadísticas personal
-
-## Conversión de precios (API)
-
-Ruta:
-
-POST /cursos/<id>/convert
+python seeds.py
 
 
-API primaria:
-👉 https://api.exchangerate.host
+Incluye:
 
-Fallback:
-👉 https://api.frankfurter.app
+Usuarios (admin, profesores, estudiantes)
 
-📌 Conversión USD → ARS/EUR/BRL
-📌 En caso de error → mensaje controlado en UI
+Estudiantes adicionales respecto a versiones previas
 
-## Subida de imágenes a AWS S3
+Cursos
 
-Ruta: formulario de creación/edición de curso
+Inscripciones
 
-Se guarda la imagen con uuid4()
+Notas básicas
 
-Permisos: ACL=public-read
+Datos para analítica
 
-Devuelve URL pública
+Esto permite probar la plataforma completa sin modificar el código.
 
-Implementado en services/s3.py
+# Autenticación
+## Login local
 
-## Módulo de analítica
+Usuario/contraseña guardados en DB.
 
-Generación de gráficos PNG con:
+## Google OAuth
 
-Pandas
+Si el email existe → se usa el rol actual.
 
-Matplotlib
+Si no existe → se crea usuario con rol estudiante.
 
-Perfiles:
-
- - Admin → visión global
- - Profesor → cursos propios y desempeño
- - Estudiante → progreso personal
-
-### En producción (Render) se muestran inicialmente datos demo.
-### Al usar el sistema con datos reales → los gráficos se actualizan automáticamente.
-
-## Estructura del proyecto (Blueprints)
-app.py
-/admin
-/auth
-/courses
-/estudiante
-/profesor
-/foro
-/services
-/stats
-/templates
-/static
-
-
-Separación por rol
-
-Servicios desacoplados (OAuth, S3, analítica)
-
-## Deploy (Render)
-
-Crear cuenta → https://render.com
-
-Nuevo servicio → Web Service
-
-Conectar el repo (GitHub)
-
-Build Command
-pip install -r requirements.txt
-
-Start Command
-gunicorn app:app
-
-Variables de entorno (obligatorias)
-SECRET_KEY=
-DATABASE_URL=sqlite:///users.db
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_REDIRECT_URI=<tu_url>/auth/authorize
-AWS_REGION=
-S3_BUCKET=
-AWS_ACCESS_KEY_ID=
-AWS_SECRET_ACCESS_KEY=
-
-
- - Render crea la base desde cero cada deploy → SQLite se resetea.
- - Si deseas persistencia real, necesito migrar a PostgreSQL.
-
-## Google OAuth (Login con Google)
-Flujo completo
-
-Usuario hace clic en Iniciar sesión con Google
-
-Google devuelve:
-
- - email
- - nombre
- - id
-
-Si el email existe → se usa el rol actual
-
-Si no existe → se crea usuario con rol estudiante
-
-login_user() → sesión activa
+Inicio de sesión vía Flask-Login.
 
 Redirección automática según rol:
 
- - /admin
- - /profesor
- - /estudiante
+/admin
 
-## Gestión de roles
+/profesor
 
-### Panel administrador:
+/estudiante
 
-/admin/users
+# Roles y Paneles
+## Administrador
+
+CRUD usuarios
+
+CRUD cursos
+
+Cambio de roles
+
+Estadísticas globales
+
+## Profesor
+
+Crear / editar / eliminar cursos propios
+
+Gestionar inscripciones
+
+Colocar calificaciones
+
+Estadísticas de desempeño por curso
+
+## Estudiante
+
+Navegar cursos
+
+Inscribirse
+
+Revisar cursos inscritos
+
+Panel de estadísticas personales
+
+# Subida de Imágenes (AWS S3)
+
+ - Implementado en services/s3.py
+
+ - Upload con uuid4()
+
+ - ACL=public-read
+
+ - Devuelve URL pública
+
+ - Integrado al CRUD de cursos
+
+# Conversión de Precios
+
+Endpoint:
+
+  POST /cursos/<id>/convert
 
 
-Funciones:
+Proveedor principal:
 
- - listar
- - cambiar rol
- - eliminar
+  https://api.exchangerate.host
 
-## Base de datos
 
-Por defecto en local:
+Fallback:
+
+  https://api.frankfurter.app
+
+
+Monedas:
+
+  USD → ARS
+
+  USD → EUR
+
+  USD → BRL
+
+  La UI maneja el error sin romper la vista.
+
+# Analítica
+
+Generación de gráficos PNG mediante:
+
+ - Pandas
+ - Matplotlib
+
+Perfiles:
+
+ - Admin: visión global
+ - Profesor: desempeño de sus cursos
+ - Estudiante: progreso personal
+
+En producción (Render):
+
+ - Se visualizan datos demo (seeds).
+ - Con datos reales, los gráficos se recalculan.
+
+# Base de Datos
+
+Por defecto (local):
 instance/users.db
 
- - Cursos
- - Usuarios
- - Inscripciones
- - Calificaciones
- - Datos demo de analítica
+Tablas:
 
-### Puedes borrar el archivo antes de entregar si necesitas base “limpia”.
+ - User
+ - Course
+ - Enrollment
+ - Grade
+ - ForumMessage (opcional)
+ - Datos demo iniciales
+ - Puedes borrar el fichero para reiniciar.
+ 
+# Deploy (Render)
 
-## Listo para presentar
+Este bloque explica cómo desplegar la app (no la URL de tu entrega).
 
- - Requisitos del parcial implementados
- - CRUD por rol
- - Login + OAuth Google
- - S3 funcional
- - Analítica activa
- - Blueprint modular
- - Variables de entorno separadas
+1. Crear cuenta en https://render.com
+2. Nuevo servicio: Web Service
+3. Conectar repositorio (GitHub)
 
- ## Mejoras futuras
- Migrar de SQLite a PostgreSQL para entorno de producción (ya se evaluó como posible mejora con el profesor).
+## Build Command
+pip install -r requirements.txt
+
+
+## Start Command
+gunicorn app:app
+
+
+## Variables obligatorias
+
+SECRET_KEY=
+DATABASE_URL=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GOOGLE_REDIRECT_URI=<TU_URL>/auth/authorize
+AWS_REGION=
+S3_BUCKET=
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+
+## Notas importantes:
+
+ - Render reinicia SQLite con cada deploy.
+ - Para persistencia real → usar PostgreSQL.
+
+# Mejoras Futuras (Roadmap)
+
+1. Migración de SQLite a PostgreSQL
+2. Sistema de notificaciones
+3. Materiales de cursos (archivos y links)
+4. Dashboard responsive
+ - Generación de certificados al finalizar un curso
+ - Descarga desde el panel del estudiante
+5. Mejora del panel Estudiante
+ - Subida de trabajos
+ - Historial de entregas y calificaciones
+6. Módulo de valoración con IA
+ - Opiniones de estudiantes
+ - Análisis de sentimiento
+ - Ranking por curso
+
+# Estado actual (Parcial 2)
+
+Blueprints modulares
+CRUD completo por rol
+Login + Google OAuth
+AWS S3 funcional
+Analítica activa
+Seed reproducible
+Integraciones externas reales
+Variables de entorno separadas
