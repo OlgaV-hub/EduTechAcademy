@@ -316,7 +316,7 @@ def register():
         elif user.role == 'profesor':
             return redirect(url_for('profesor.profesor_panel'))
         else:
-            return redirect(url_for('esudiante.estudiante_panel'))
+            return redirect(url_for('estudiante.estudiante_panel'))
 
     return render_template('register.html')
 

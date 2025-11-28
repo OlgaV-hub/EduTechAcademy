@@ -7,29 +7,12 @@ from services.s3 import subir_imagen_curso
 
 courses_bp = Blueprint("courses", __name__)
 
-
 @courses_bp.route("/cursos")
-@login_required
 def listar_cursos():
+    """Catálogo público de cursos (página con el banner). No requiere login."""
     Course = current_app.Course
-
-
-    if current_user.role == "admin":
-        cursos = Course.query.all()
-        active = "cursos"
-
-
-    elif current_user.role == "profesor":
-        cursos = Course.query.filter_by(teacher_id=current_user.id).all()
-        active = "mis_cursos"
-
-
-    else:
-        cursos = Course.query.all()
-        active = "todos_cursos"
-
-    return render_template("cursos.html", cursos=cursos, active=active)
-
+    cursos = Course.query.all()
+    return render_template("cursos.html", cursos=cursos)
 
 @courses_bp.route("/cursos/<int:course_id>")
 @login_required
@@ -82,10 +65,10 @@ def form_curso():
         return render_template("403.html"), 403
     return render_template("form_curso.html")
 
-
 @courses_bp.route("/agregar_curso", methods=["POST"])
 @login_required
 def agregar_curso():
+
     if current_user.role not in ("admin", "profesor"):
         return render_template("403.html"), 403
 
@@ -98,31 +81,32 @@ def agregar_curso():
     try:
         precio = float(request.form.get("precio") or 0)
     except ValueError:
-        precio = 0
+        precio = 0.0
 
     if not nombre:
         flash("Nombre obligatorio", "warning")
         return redirect(url_for("courses.form_curso"))
 
+
     exist = Course.query.filter_by(
         nombre=nombre,
-        teacher_id=current_user.id if current_user.role == "profesor" else None
+        teacher_id=current_user.id
     ).first()
     if exist:
-        flash("Curso duplicado", "warning")
+        flash("Curso duplicado para este usuario", "warning")
         return redirect(url_for("courses.form_curso"))
-
 
     file = request.files.get("imagen")
     image_key = None
     if file and getattr(file, "filename", ""):
         image_key = subir_imagen_curso(file)
 
+
     nuevo = Course(
         nombre=nombre,
         descripcion=descripcion,
         precio=precio,
-        teacher_id=current_user.id if current_user.role == "profesor" else None,
+        teacher_id=current_user.id,
         image_key=image_key,
     )
     db.session.add(nuevo)
@@ -132,9 +116,11 @@ def agregar_curso():
 
 
     if current_user.role == "profesor":
-        return redirect(url_for("profesor.profesor_todos_cursos"))
+        return redirect(url_for("profesor.profesor_mis_cursos"))
     if current_user.role == "admin":
-        return redirect(url_for("admin.admin_todos_cursos"))
+        return redirect(url_for("admin.admin_mis_cursos"))
+
+
     return redirect(url_for("courses.listar_cursos"))
 
 @courses_bp.route("/cursos/<int:course_id>/edit", methods=["GET", "POST"])

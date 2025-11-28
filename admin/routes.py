@@ -1,6 +1,6 @@
 from flask import (
     Blueprint, render_template, redirect,
-    url_for, request, current_app
+    url_for, request, current_app, flash
 )
 from flask_login import login_required, current_user
 
@@ -37,11 +37,18 @@ def admin_update_user_role(user_id):
 
     new_role = request.form.get("role")
     user = User.query.get_or_404(user_id)
-    user.role = new_role
-    db.session.commit()
+
+    if new_role and new_role != user.role:
+        user.role = new_role
+        db.session.commit()
+        flash(
+            f"Rol de «{user.username or user.email}» actualizado a «{new_role}».",
+            "success",
+        )
+    else:
+        flash("El rol seleccionado es igual al actual.", "info")
 
     return redirect(url_for("admin.admin_users"))
-
 
 @admin_bp.route("/admin/users/<int:user_id>/delete", methods=["POST"])
 @login_required
@@ -54,13 +61,18 @@ def admin_delete_user(user_id):
 
     user = User.query.get_or_404(user_id)
 
+    # Защита от удаления себя
     if user.id == current_user.id:
+        flash("No podes eliminar tu propia cuenta.", "warning")
         return redirect(url_for("admin.admin_users"))
+
+    nombre = user.username or user.email
 
     db.session.delete(user)
     db.session.commit()
-    return redirect(url_for("admin.admin_users"))
 
+    flash(f"Usuario «{nombre}» fue eliminado correctamente.", "success")
+    return redirect(url_for("admin.admin_users"))
 
 # =====================================================
 #     Cursos para ADMIN
